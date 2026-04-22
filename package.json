@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:tilesets": "node --experimental-strip-types tools/build-tilesets.ts",
+    "gen:map": "node --experimental-strip-types tools/gen-starter-map.ts"
   },
   "devDependencies": {
+    "jimp": "^1.6.1",
     "typescript": "~6.0.2",
     "vite": "^8.0.9"
   },

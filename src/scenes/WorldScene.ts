@@ -1,28 +1,31 @@
 import { Scene } from 'phaser';
-import { TILE_SIZE, RENDER_SCALE } from '../config';
+import { InputSystem } from '../systems/InputSystem';
 
-const GRID_COLS = 10;
-const GRID_ROWS = 10;
+const DEPTH_GROUND = 0;
+const DEPTH_ABOVE  = 20;
 
 export class WorldScene extends Scene {
+  private inputSystem!: InputSystem;
+
   constructor() {
     super({ key: 'WorldScene' });
   }
 
   create(): void {
-    for (let row = 0; row < GRID_ROWS; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
-        this.add.image(col * TILE_SIZE, row * TILE_SIZE, 'grass').setOrigin(0, 0);
-      }
-    }
+    const map     = this.make.tilemap({ key: 'world' });
+    const tileset = map.addTilesetImage('terrain_base', 'terrain_base')!;
 
-    const gridCenterX = (GRID_COLS * TILE_SIZE) / 2;
-    const gridCenterY = (GRID_ROWS * TILE_SIZE) / 2;
+    map.createLayer('ground',           tileset)!.setDepth(DEPTH_GROUND);
+    map.createLayer('ground_detail',    tileset)!.setDepth(DEPTH_GROUND + 1);
+    map.createLayer('decoration_below', tileset)!.setDepth(DEPTH_GROUND + 2);
+    map.createLayer('buildings_baked',  tileset)!.setDepth(DEPTH_GROUND + 3);
+    map.createLayer('decoration_above', tileset)!.setDepth(DEPTH_ABOVE);
 
-    // Static player sprite, frame 0 (idle facing down)
-    this.add.sprite(gridCenterX, gridCenterY, 'player', 0);
+    this.inputSystem = new InputSystem(this);
+    this.inputSystem.init(map.widthInPixels, map.heightInPixels);
+  }
 
-    this.cameras.main.setZoom(RENDER_SCALE);
-    this.cameras.main.centerOn(gridCenterX, gridCenterY);
+  update(_time: number, delta: number): void {
+    this.inputSystem.update(delta);
   }
 }

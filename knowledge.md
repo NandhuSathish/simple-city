@@ -53,6 +53,75 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ---
 
+## God's-eye camera (city builder)
+
+### Input pattern (2026-04-22)
+- **No player avatar.** PLAN.md §4.8 is explicit: this is a pure city builder (Banished / Anno lineage). The camera is the player. WASD = camera pan, not character movement.
+- `cam.setBounds(0, 0, mapWidth, mapHeight)` clamps scroll to map extents automatically. Phaser applies the clamping each frame; manually setting `cam.scrollX` in the update loop is fine — the bounds take effect at render time.
+- `cam.centerOn(x, y)` is the cleanest way to set the initial scroll position to the map centre.
+
+### Zoom-to-cursor math (2026-04-22)
+- Standard formula: save the world-space point under the cursor **before** changing zoom, then adjust scroll so the same world point sits under the cursor **after** the new zoom.
+  ```ts
+  const worldX = cam.scrollX + ptr.x / oldZoom;
+  const worldY = cam.scrollY + ptr.y / oldZoom;
+  cam.zoom    = newZoom;
+  cam.scrollX = worldX - ptr.x / newZoom;
+  cam.scrollY = worldY - ptr.y / newZoom;
+  ```
+- `ptr.x / oldZoom` converts the screen-space pointer offset into a world-space offset from `scrollX`.
+
+### WASD momentum (2026-04-22)
+- Velocity accumulates while key held (`PAN_ACCEL = 1200 world px/s²`), decays with frame-rate-independent exponential friction when key released (`Math.exp(-PAN_FRICTION * dt)`, `PAN_FRICTION = 10`).
+- Cap at `PAN_MAX = 400 world px/s`. Kill sub-0.1 velocities to prevent endless micro-drift.
+- Wheel event signature: `(pointer, gameObjects, deltaX, deltaY)` — use `pointer.x/y` for cursor position; ignore the rest.
+
+## Tilemap (Phaser 4 + Tiled)
+
+### createLayer GPU flag (2026-04-22)
+- `Tilemap.createLayer(id, tileset, x?, y?, gpu?)` — the `gpu` flag is the **5th positional argument**, not an options object.
+- With `gpu: true`, Phaser 4 returns a `TilemapGPULayer` instead of `TilemapLayer`. Single draw call per layer, no tile seams.
+- `TilemapGPULayer` is WebGL-only and orthographic-only — fine for this project.
+- Type definition in `phaser.d.ts` correctly reflects this signature.
+
+### TilemapGPULayer breaks sprite depth ordering — DO NOT USE yet (2026-04-22)
+- **Problem:** `TilemapGPULayer` renders via a full-screen framebuffer pass. Sprites placed between two GPU layers in the scene graph become invisible (the GPU layer pass appears to override sprite rendering).
+- **Symptom:** Solid-colour map, no player sprite visible, no console errors.
+- **Fix applied:** Reverted all layers to standard `TilemapLayer` with explicit `.setDepth()` values (`DEPTH_GROUND=0`, `DEPTH_PLAYER=10`, `DEPTH_ABOVE=20`).
+- **Future:** Re-evaluate GPU layers in Phase 6 when map content and render order are stable. May need to render all sprites onto a `DynamicTexture` or use a scene-level depth sort.
+
+### Tiled — programmatic map generation (2026-04-22)
+- Tiled cannot be invoked headlessly from Node; map authored via `tools/gen-starter-map.ts` as a baseline.
+- To re-author visually: install Tiled, open `public/assets/maps/world.tmj`, add each terrain PNG from `G:\Cute_Fantasy\Tiles\` as a separate tileset OR use the composed `public/assets/tilesets/terrain_base.png`.
+- The composed tileset `terrain_base.png` (256×592) must be built first: `npm run build:tilesets`.
+- GID layout: Grass GIDs 1–160, Cobble 161–240, FarmLand 241–368, Pavement 369–496, Wooden Deck 497–592.
+
+### terrain_base.png GID layout (2026-04-22)
+- `GRASS_FILL_GID = 81` is an educated guess for the plain-middle grass tile (col 0, row 5 of Grass_Tiles_1.png).
+- Needs visual confirmation during playtesting: run `npm run dev`, observe the ground color, then inspect `terrain_base.png` to find the correct GID and update `GRASS_FILL_GID` in `tools/gen-starter-map.ts`.
+
+## Player Animations
+
+### ~~Frame layout guess (2026-04-22)~~ — REPLACED, see below
+
+~~Player_Base_animations.png was used but produced a naked character (no clothing). Switched to NPCs (Premade).~~
+
+### NPC Premade spritesheet layout — CONFIRMED via reference image (2026-04-22)
+- Player sprite is now `Farmer_Bob.png` copied from `G:\Cute_Fantasy\NPCs (Premade)\`.
+- Sheet: 384×832 px, **6 cols × 13 rows**, 64×64 frames — all 6 columns filled (no blank frames).
+- Confirmed row order (from official kenmi-art reference image):
+  - Row 0  (frames  0– 5): `idle_down`   — Standing, facing down
+  - Row 1  (frames  6–11): `idle_left`   — Standing, facing left
+  - Row 2  (frames 12–17): `idle_right`  — Standing, facing right
+  - Row 3  (frames 18–23): `idle_up`     — Standing, facing up
+  - Row 4  (frames 24–29): `walk_down`   — Running/moving, facing down
+  - Row 5  (frames 30–35): `walk_left`   — Running/moving, facing left
+  - Row 6  (frames 36–41): `walk_right`  — Running/moving, facing right
+  - Row 7  (frames 42–47): `walk_up`     — Running/moving, facing up
+  - Rows 8–12: attack/special actions (not used in Phase 1)
+- Other NPCs from the same pack: Bartender_Bruno/Katy, Chef_Chloe (384×448, 7 rows), Lumberjack_Jack, Miner_Mike (384×640, 10 rows), Fisherman_Fin (576×832, different column count).
+- All NPC sheets use identical row ordering for the first 8 rows (idle + run in 4 directions).
+
 ## Vite + TypeScript
 
 ### Template quirks (2026-04-22)
