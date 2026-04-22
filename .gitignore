@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Compiled atlas outputs (rebuild with: node tools/pack-atlases.ts)
+public/assets/atlases/*.png
+public/assets/tilesets/*.png
+
+# Raw asset sources — Premium licence forbids redistribution
+public/assets/grass_tile.png
+public/assets/player.png
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
