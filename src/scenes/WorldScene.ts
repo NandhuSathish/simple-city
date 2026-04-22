@@ -1,20 +1,22 @@
 import { Scene, Input } from 'phaser';
 import { InputSystem } from '../systems/InputSystem';
 import { BuildSystem } from '../systems/BuildSystem';
+import { TimeSystem } from '../systems/TimeSystem';
+import { EconomySystem } from '../systems/EconomySystem';
+import type { Resources } from '../systems/EconomySystem';
 import { initGrid } from '../utils/grid';
 import { buildingCatalog } from '../data/buildingCatalog';
-import { RENDER_SCALE } from '../config';
-
 const DEPTH_GROUND = 0;
 const DEPTH_ABOVE  = 20;
-const DEPTH_UI     = 100;
 
 export class WorldScene extends Scene {
-  private inputSystem!: InputSystem;
-  private buildSystem!: BuildSystem;
+  private inputSystem!:   InputSystem;
+  private buildSystem!:   BuildSystem;
+  private timeSystem!:    TimeSystem;
+  readonly economySystem!: EconomySystem;
   private keys!: {
-    one: Input.Keyboard.Key;
-    two: Input.Keyboard.Key;
+    one:   Input.Keyboard.Key;
+    two:   Input.Keyboard.Key;
     three: Input.Keyboard.Key;
   };
 
@@ -37,8 +39,16 @@ export class WorldScene extends Scene {
     this.inputSystem = new InputSystem(this);
     this.inputSystem.init(map.widthInPixels, map.heightInPixels);
 
-    this.buildSystem = new BuildSystem(this);
+    // economySystem is declared readonly; cast to allow assignment in create()
+    (this as { economySystem: EconomySystem }).economySystem = new EconomySystem(this);
+
+    this.buildSystem = new BuildSystem(this, this.economySystem);
     this.buildSystem.init();
+
+    this.timeSystem = new TimeSystem(this);
+
+    // Launch UIScene on top — its create() will grab this scene's event bus
+    this.scene.launch('UIScene');
 
     const kb = this.input.keyboard!;
     this.keys = {
@@ -46,28 +56,23 @@ export class WorldScene extends Scene {
       two:   kb.addKey(Input.Keyboard.KeyCodes.TWO),
       three: kb.addKey(Input.Keyboard.KeyCodes.THREE),
     };
+  }
 
-    // setScrollFactor(0) positions are in world space * zoom = screen pixels.
-    // Divide by RENDER_SCALE so the text lands at the correct screen position.
-    const hintX = 8 / RENDER_SCALE;
-    const hintY = (this.scale.height / RENDER_SCALE) - 14;
-    this.add.text(hintX, hintY, '1: Wood House  2: Windmill  3: Well  ·  Esc: cancel', {
-      fontSize: '11px',
-      color: '#ffffff',
-      backgroundColor: '#00000088',
-      padding: { x: 6, y: 4 },
-    }).setScrollFactor(0).setDepth(DEPTH_UI);
+  /** Called by UIScene to prime the initial HUD state. */
+  getEconomySnapshot(): Resources {
+    return this.economySystem.getSnapshot();
   }
 
   update(_time: number, delta: number): void {
     this.inputSystem.update(delta);
+    this.timeSystem.update(delta);
 
     if (Input.Keyboard.JustDown(this.keys.one)) {
-      this.buildSystem.startPlacing(buildingCatalog[0].key);
+      this.events.emit('build:start', buildingCatalog[0].key);
     } else if (Input.Keyboard.JustDown(this.keys.two)) {
-      this.buildSystem.startPlacing(buildingCatalog[1].key);
+      this.events.emit('build:start', buildingCatalog[1].key);
     } else if (Input.Keyboard.JustDown(this.keys.three)) {
-      this.buildSystem.startPlacing(buildingCatalog[2].key);
+      this.events.emit('build:start', buildingCatalog[2].key);
     }
   }
 }

@@ -4,6 +4,33 @@ All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---
 
+## [Phase 3 — Economy & proper UI] 2026-04-22
+
+Goal: Tick-based economy with costs/production, resource HUD, and tabbed build menu.
+
+### Added
+- **`src/systems/TimeSystem.ts`** — Game clock. `GAME_MINUTE_MS = 1000` (1 real second = 1 game-minute, tunable). `update(delta)` accumulates ms and emits `time:tick` on `scene.events` each game-minute.
+- **`src/systems/EconomySystem.ts`** — Tick-based economy. Starting resources: `Wood 50 / Stone 20 / Food 30 / Gold 100`. Subscribes to `time:tick`, aggregates `produces`/`consumes` across all placed buildings, emits `economy:changed` with snapshot. Exposes `canAfford(cost)`, `deductCost(cost)`, `addBuilding(def)`, `getSnapshot()`.
+- **`src/scenes/UIScene.ts`** — Runs in parallel with WorldScene (`this.scene.launch('UIScene')`). Creates `ResourceBar` and `BuildMenu`, subscribes to WorldScene's `economy:changed`, primes HUD from `world.getEconomySnapshot()` on startup, routes `build:start` emissions back to WorldScene's event bus.
+- **`src/ui/ResourceBar.ts`** — Top bar (depth 190). Shows 4 icons from `icons` atlas + resource counters. `update(resources)` re-draws counters on every `economy:changed`. Icon frames: `res_0`=Wood, `res_1`=Stone, `food_0`=Food, `res_5`=Gold (verify visually).
+- **`src/ui/BuildMenu.ts`** — Bottom bar (depth 190). Tabbed: Housing / Production / Resource / Decoration. Each button shows the building sprite scaled to fit a 72×72 button, with the label below. Tooltip on hover shows name, cost, produces/consumes. Cannot-afford state greys button to 40% alpha and disables interaction. `onResourceUpdate(resources)` called each tick to refresh affordability.
+- **`tools/pack-atlases.js`** (icons section) — Slices `Icons/Outline/*.png` (5 sheets) into 16×16 frames using Jimp pixel-copy, packs them into `public/assets/atlases/icons.{png,json}` (177 frames). Frame naming: `res_N` (Resources_Icons_Outline, 6×6), `food_N` (8×12), `other_N` (5×3), `other2_N` (4×5), `tool_N` (10×1).
+
+### Changed
+- **`src/types.ts`** — Added `ResourceType`, `ResourceMap`, `BuildMenuTab`. Extended `BuildingDef` with `label`, `tab`, `cost`, `produces`, `consumes`.
+- **`src/data/buildingCatalog.ts`** — All three buildings gain `label`, `tab`, `cost`, `produces`, `consumes`. Balancing: `wood_house_blue` costs Wood 10 / Stone 5, consumes Food 0.05/min; `windmill` costs Wood 20 / Stone 10, produces Food 0.2/min; `well` costs Stone 15, no production.
+- **`src/systems/BuildSystem.ts`** — Accepts `EconomySystem` parameter. `onPointerMove` factors in `canAfford` when deciding ghost tint. `onPointerDown` calls `deductCost` + `addBuilding` on placement. Adds `isOverUI()` check to suppress placement clicks inside the HUD zones. Listens to `scene.events` for `build:start` (routed from BuildMenu via UIScene).
+- **`src/scenes/WorldScene.ts`** — Creates `TimeSystem` and `EconomySystem`. Passes `economySystem` to `BuildSystem`. Launches UIScene. Removes HUD hint text (replaced by BuildMenu). Keyboard shortcuts 1/2/3 now emit `build:start` on `scene.events` (same path as UI). Exposes `getEconomySnapshot()` for UIScene priming.
+- **`src/scenes/PreloadScene.ts`** — Loads `icons` atlas.
+- **`src/main.ts`** — Registers `UIScene` in the scene list.
+- **`src/config.ts`** — Added `UI_TOP_BAR_H = 36` and `UI_BOTTOM_BAR_H = 106` constants.
+
+### Verification
+- `tsc --noEmit` → 0 errors
+- `npm run build` → success, ~1.37 MB bundle (355 kB gzip), ~5.4 s
+
+---
+
 ## [Phase 2 — Build system MVP] 2026-04-22
 
 Goal: Grid-based building placement with ghost sprite and validation. No resource costs.

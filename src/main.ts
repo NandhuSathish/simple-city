@@ -2,6 +2,7 @@ import { Game, AUTO, Scale } from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { WorldScene } from './scenes/WorldScene';
+import { UIScene } from './scenes/UIScene';
 
 new Game({
   type: AUTO,
@@ -12,5 +13,5 @@ new Game({
     mode: Scale.RESIZE,
     autoCenter: Scale.CENTER_BOTH,
   },
-  scene: [BootScene, PreloadScene, WorldScene],
+  scene: [BootScene, PreloadScene, WorldScene, UIScene],
 });

@@ -15,9 +15,19 @@ export interface Footprint {
   h: number;
 }
 
+export type ResourceType = 'Wood' | 'Stone' | 'Food' | 'Gold';
+export type ResourceMap = Partial<Record<ResourceType, number>>;
+
+export type BuildMenuTab = 'Housing' | 'Production' | 'Resource' | 'Decoration';
+
 export interface BuildingDef {
   key: string;
+  label: string;
+  tab: BuildMenuTab;
   spriteFrame: string;
   footprint: Footprint;
   terrainAllowed: TerrainType[];
+  cost: ResourceMap;
+  produces: ResourceMap;
+  consumes: ResourceMap;
 }

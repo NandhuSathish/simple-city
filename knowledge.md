@@ -201,6 +201,50 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ---
 
+## Economy & UI (Phase 3, 2026-04-22)
+
+### EconomySystem event bus pattern
+- WorldScene.events acts as the shared bus between WorldScene and UIScene.
+- EconomySystem emits `economy:changed` on `scene.events` (WorldScene's events).
+- BuildSystem listens to `build:start` on `scene.events`.
+- UIScene subscribes to WorldScene's events via `this.scene.get('WorldScene').events.on(...)` from within UIScene.create().
+- UIScene routes `build:start` back to WorldScene.events via the `onSelect` callback — no direct scene coupling beyond the scene.get() call.
+- UIScene primes the HUD immediately by calling `world.getEconomySnapshot()` — no need to wait for the first `economy:changed` event.
+
+### erasableSyntaxOnly: true — no parameter properties
+- `tsconfig.json` has `erasableSyntaxOnly: true` (TypeScript 5.5+). This forbids constructor parameter properties (`constructor(private readonly x: T)`) because they generate non-erasable JavaScript code (constructor body assignments).
+- **Fix:** Declare fields explicitly, then assign in the constructor body:
+  ```ts
+  private readonly scene: Scene;
+  constructor(scene: Scene) { this.scene = scene; }
+  ```
+
+### Phaser text() style argument
+- `scene.add.text(x, y, content, style)` — the `style` parameter is the **4th** argument.
+- `Parameters<Scene['add']['text']>[2]` resolves to `string | string[]` (the text content), NOT the style.
+- Do not create a TextStyle alias via `Parameters<Scene['add']['text']>[2]`. Just pass the style object inline — TypeScript infers the type from the method signature.
+
+### UIScene camera and screen coordinates
+- UIScene launched via `this.scene.launch('UIScene')` gets an independent camera with `zoom=1`, `scroll=(0,0)`.
+- Coordinates in UIScene are screen pixels directly. `this.scale.width/height` = current viewport size.
+- No `setScrollFactor(0)` needed — UIScene objects are already fixed to screen.
+
+### icons atlas frame naming (2026-04-22)
+- Icon sheets sliced into 16×16 px frames. Frame names: `{prefix}_{rowMajorIndex}`.
+- Resources_Icons_Outline.png → `res_0`…`res_35` (6×6 grid)
+- Food_Icons_Outline.png → `food_0`…`food_95` (8×12 grid)
+- Other_Icons_Outline.png → `other_0`…`other_14` (5×3 grid)
+- Other_Icons_2_Outline.png → `other2_0`…`other2_19` (4×5 grid)
+- Tool_Icons_Outline.png → `tool_0`…`tool_9` (10×1 grid)
+- **Exact icon-to-resource mapping UNVERIFIED** — confirm during playtesting and update ResourceBar.ts ICON_FRAMES if wrong. Current guesses: Wood=res_0, Stone=res_1, Food=food_0, Gold=res_5.
+
+### BuildSystem UI zone guard (2026-04-22)
+- Phaser does not automatically stop WorldScene pointer events when UIScene interactive objects handle them.
+- BuildSystem.isOverUI() checks `pointer.y < UI_TOP_BAR_H || pointer.y > H - UI_BOTTOM_BAR_H` to block ghost placement and clicks within HUD bands.
+- `UI_TOP_BAR_H = 36` and `UI_BOTTOM_BAR_H = 106` are exported from `src/config.ts`.
+
+---
+
 ## BuildSystem (2026-04-22)
 
 ### Ghost sprite anchor and placement (2026-04-22)
