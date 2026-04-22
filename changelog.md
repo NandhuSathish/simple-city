@@ -4,6 +4,51 @@ All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---
 
+## [Phase 4 — Resource Production] 2026-04-22
+
+Goal: Resources flow from staffed production buildings that consume natural resource nodes.
+No player avatar; all worker slots treated as filled for playtest.
+
+### Added
+
+- **`src/entities/ResourceNode.ts`** — Represents a tree or ore deposit on the map. Tracks `volume` (0–100), scales sprite alpha/size as it depletes, runs regrowth timer (`tickRegrowth()` called each game-minute). Tree nodes regrow after 5 game-minutes at zero; ore after 10.
+
+- **`src/systems/ResourceNodeSystem.ts`** — Spawns ~90 tree nodes on grass tiles and ~22 ore deposits near map edges using a seeded LCG (deterministic). Provides `getTreeDensity(col, row, radius)` and `getOreDensity(...)` (0–1), `depleteInRadius(...)`, and `countInRadius(...)` for the economy and info panel. Subscribes to `time:tick` to drive regrowth.
+
+- **`src/ui/BuildingInfoPanel.ts`** — Right-side panel (depth 200) shown when a placed building is clicked. Displays: name, worker slots (X/Y), current effective production rate, and a resource availability message ("No trees in range" | "Trees in range: N (D% full)" etc.). Shown/hidden via `building:info` / `building:deselected` events.
+
+- **`tools/pack-atlases.js`** — Added `packTrees()` (12 tree PNGs → `trees.{png,json}`), `packDecor()` (`Ores.png` → `decor.{png,json}`), and `packCrops()` (Crops.png 7×43 grid sliced into 301 16×16 frames → `crops.{png,json}`).
+
+### Changed
+
+- **`tools/gen-starter-map.ts`** — Added a farmland zone (rows 44–55, cols 8–55, GIDs 241+) in the south-centre of the map. Renamed `grassGroundLayer()` → `groundLayer()`. `world.tmj` regenerated.
+
+- **`src/types.ts`** — Added `ResourceNodeType`, optional `BuildingDef` fields (`workerSlots`, `productionRadius`, `requiresTrees`, `requiresOre`), and new interfaces `PlacedBuildingData` and `BuildingInfo`.
+
+- **`src/utils/grid.ts`** — Added `initTerrainFromGids(gids)`, `getTerrainAt(col, row)`, and `isTerrainAllowed(col, row, w, h, allowed)`. Terrain is inferred from Tiled GID ranges: 1–160 = grass, 241–368 = farmland, otherwise path.
+
+- **`src/data/buildingCatalog.ts`** — Added three production buildings:
+  - **Lumberjack Hut** (`Shed_Base_Blue`, 2×2, `requiresTrees`, radius 8, 2 slots, base 0.3 Wood/min, costs Wood 30 / Stone 10)
+  - **Quarry** (`Silo`, 2×3, `requiresOre`, radius 10, 3 slots, base 0.25 Stone/min, costs Wood 20 / Stone 30)
+  - **Farm** (`Barn_Base_Blue`, 3×3, `terrainAllowed: ['farmland']`, 2 slots, 0.4 Food/min, costs Wood 25 / Stone 10)
+
+- **`src/systems/EconomySystem.ts`** — `addBuilding(def, col, row)` now stores position. Production tick scales output by `workers × density` for tree/ore buildings and depletes corresponding nodes. Exposes `getEffectiveRate(def, col, row)` and `getResourceMessage(def, col, row)` for the info panel.
+
+- **`src/systems/BuildSystem.ts`** — Ghost validation now checks `isTerrainAllowed()` (red ghost on wrong terrain). Placed buildings are tracked with `PlacedBuildingData`; clicking a placed building emits `building:selected`; clicking empty space emits `building:deselected`.
+
+- **`src/scenes/PreloadScene.ts`** — Loads `trees`, `decor`, `crops` atlases.
+
+- **`src/scenes/WorldScene.ts`** — Initialises `ResourceNodeSystem`, calls `spawnNodes()` after terrain grid is set, wires `EconomySystem.setResourceNodeSystem()`. Handles `building:selected` → enriches with economy data → emits `building:info`.
+
+- **`src/scenes/UIScene.ts`** — Creates `BuildingInfoPanel`; subscribes to `building:info` and `building:deselected` events. Right-click anywhere in UIScene also hides the panel.
+
+### Verification
+
+- `tsc --noEmit` → 0 errors
+- `npm run build` → success, ~1.37 MB bundle (358 kB gzip), ~976ms
+
+---
+
 ## [Phase 3 — Economy & proper UI] 2026-04-22
 
 Goal: Tick-based economy with costs/production, resource HUD, and tabbed build menu.

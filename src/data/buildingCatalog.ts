@@ -1,6 +1,7 @@
 import type { BuildingDef } from '../types';
 
 export const buildingCatalog: BuildingDef[] = [
+  // ── Housing ──────────────────────────────────────────────────────────────
   {
     key:            'wood_house_blue',
     label:          'Wood House',
@@ -11,6 +12,48 @@ export const buildingCatalog: BuildingDef[] = [
     cost:           { Wood: 10, Stone: 5 },
     produces:       {},
     consumes:       { Food: 0.05 },
+  },
+
+  // ── Production ───────────────────────────────────────────────────────────
+  {
+    key:             'lumberjack_hut',
+    label:           'Lumberjack Hut',
+    tab:             'Production',
+    spriteFrame:     'Shed_Base_Blue',
+    footprint:       { w: 2, h: 2 },
+    terrainAllowed:  ['grass'],
+    cost:            { Wood: 30, Stone: 10 },
+    produces:        { Wood: 0.3 },   // per worker per minute; scaled by density
+    consumes:        {},
+    workerSlots:     2,
+    productionRadius: 8,
+    requiresTrees:   true,
+  },
+  {
+    key:             'quarry',
+    label:           'Quarry',
+    tab:             'Production',
+    spriteFrame:     'Silo',
+    footprint:       { w: 2, h: 3 },
+    terrainAllowed:  ['grass'],
+    cost:            { Wood: 20, Stone: 30 },
+    produces:        { Stone: 0.25 }, // per worker per minute; scaled by ore density
+    consumes:        {},
+    workerSlots:     3,
+    productionRadius: 10,
+    requiresOre:     true,
+  },
+  {
+    key:             'farm',
+    label:           'Farm',
+    tab:             'Production',
+    spriteFrame:     'Barn_Base_Blue',
+    footprint:       { w: 3, h: 3 },
+    terrainAllowed:  ['farmland'],
+    cost:            { Wood: 25, Stone: 10 },
+    produces:        { Food: 0.4 },   // per worker per minute; flat (no density modifier)
+    consumes:        {},
+    workerSlots:     2,
   },
   {
     key:            'windmill',
@@ -23,6 +66,8 @@ export const buildingCatalog: BuildingDef[] = [
     produces:       { Food: 0.2 },
     consumes:       {},
   },
+
+  // ── Resource ─────────────────────────────────────────────────────────────
   {
     key:            'well',
     label:          'Well',

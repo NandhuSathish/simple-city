@@ -32,10 +32,15 @@ const MAP_W = 64;
 const MAP_H = 64;
 const TILE_SIZE = 16;
 
-// Adjust if GID 1 isn't the right plain grass after inspecting terrain_base.png.
-// In Grass_Tiles_1.png (16 cols × 10 rows), the plain-middle is at approximately
-// col 0, row 5 (index 80, GID 81). This is an educated guess — confirm visually.
-const GRASS_FILL_GID = 81;
+// Grass: GIDs 1–160 (Grass_Tiles_1, 16 cols × 10 rows). GID 81 = plain-middle.
+const GRASS_FILL_GID  = 81;
+// FarmLand: GIDs 241–368 (FarmLand_Tile, 16 cols). GID 241 = first farmland tile.
+const FARM_FILL_GID   = 241;
+// FarmLand zone: south-centre of map — rows 44–54, cols 8–55 (48 wide × 11 tall).
+const FARM_ROW_START  = 44;
+const FARM_ROW_END    = 55;  // inclusive
+const FARM_COL_START  = 8;
+const FARM_COL_END    = 55;  // inclusive
 
 const SPAWN_X = (MAP_W / 2) * TILE_SIZE;  // 512
 const SPAWN_Y = (MAP_H / 2) * TILE_SIZE;  // 512
@@ -48,17 +53,23 @@ function emptyLayer(): number[] {
   return new Array<number>(MAP_W * MAP_H).fill(0);
 }
 
-/** Scatter some grass variant tiles for subtle visual variety. */
-function grassGroundLayer(): number[] {
+/** Build the ground layer: grass everywhere, with a farmland patch in the south-centre. */
+function groundLayer(): number[] {
   const data = fillLayer(GRASS_FILL_GID);
-  // A small set of nearby GIDs for variety within the grass section (rows 0–9).
-  // Adjust these once you've inspected Grass_Tiles_1.png.
   const variants = [GRASS_FILL_GID, GRASS_FILL_GID, GRASS_FILL_GID, GRASS_FILL_GID + 1, GRASS_FILL_GID - 1];
   let seed = 12345;
   const rng = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return Math.abs(seed) / 0xffffffff; };
 
-  for (let i = 0; i < data.length; i++) {
-    if (rng() < 0.08) data[i] = variants[Math.floor(rng() * variants.length)];
+  for (let r = 0; r < MAP_H; r++) {
+    for (let c = 0; c < MAP_W; c++) {
+      const idx = r * MAP_W + c;
+      if (r >= FARM_ROW_START && r <= FARM_ROW_END && c >= FARM_COL_START && c <= FARM_COL_END) {
+        // Farmland patch — FarmLand_Tile GIDs 241+ for slight variety
+        data[idx] = FARM_FILL_GID + (rng() < 0.15 ? Math.floor(rng() * 3) : 0);
+      } else {
+        if (rng() < 0.08) data[idx] = variants[Math.floor(rng() * variants.length)];
+      }
+    }
   }
   return data;
 }
@@ -109,7 +120,7 @@ const map = {
   height: MAP_H,
   infinite: false,
   layers: [
-    tileLayer(1, 'ground',           grassGroundLayer()),
+    tileLayer(1, 'ground',           groundLayer()),
     tileLayer(2, 'ground_detail',    emptyLayer()),
     tileLayer(3, 'decoration_below', emptyLayer()),
     tileLayer(4, 'buildings_baked',  emptyLayer()),

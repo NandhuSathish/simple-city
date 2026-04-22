@@ -245,6 +245,64 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ---
 
+## Phase 4 — Resource Production (2026-04-22)
+
+### Sprite frame names for new buildings
+- Lumberjack Hut: `Shed_Base_Blue` (96×112 px, Buildings/Unique_Buildings/Shed/). Fits 2×2 footprint with the kenmi-art tall-sprite style.
+- Quarry: `Silo` (48×80 px, single file at Buildings/Buildings/Unique_Buildings/Silo/Silo.png — no colour variant).
+- Farm: `Barn_Base_Blue` (128×144 px). Barn used instead of GreenHouse because GreenHouse_Wood.png is 384×128 — likely a 3-panel horizontal composite not suitable as a single building sprite. Barn reads clearly as a farm building.
+
+### GreenHouse_Wood.png is a 3-panel horizontal image (2026-04-22)
+- Dimensions: 384×128 px. At TILE_SIZE=16 this would be 24 tiles wide in world space — clearly not a single-building sprite.
+- The file appears to be three 128×128 section panels placed side-by-side (roof, middle, side wall).
+- **Rule:** Do not use GreenHouse_*.png as a single placed-building sprite. Either composite sections or use a different building.
+
+### Crops.png layout (2026-04-22)
+- File: `G:\Cute_Fantasy\Crops\Crops.png`, 112×688 px.
+- At 16×16 frames: 7 cols × 43 rows = 301 frames, packed as `crop_0`…`crop_300` in the crops atlas.
+- Frame ordering: row-major. Row 0 is the first crop type at growth stage 0, row 1 is stage 1 for that type, etc. Exact crop-type-to-row mapping is unverified — inspect the atlas visually during playtesting.
+- For farm growth stage cycling, use frames from column 0 of rows 0–3 (indices 0, 7, 14, 21) as a minimal 4-stage progression.
+
+### Trees atlas frame names (2026-04-22)
+- 12 tree PNGs packed (excluding Particle files): `Small_Oak_Tree`, `Small_Birch_Tree`, `Small_Spruce_Tree`, `Medium_Oak_Tree`, `Medium_Birch_Tree`, `Medium_Spruce_Tree`, `Big_Oak_Tree`, `Big_Birch_Tree`, `Big_Spruce_tree` (note: Spruce is lowercase "t"), `Small_Fruit_Tree`, `Medium_Fruit_Tree`, `Big_Fruit_Tree`.
+- Big_Oak_Tree and Big_Spruce are 192×80 — likely 2-frame horizontal sheets. Packed as single frames; visual confirms needed during playtesting.
+- All tree sprites use `setOrigin(0.5, 1)` (bottom-centre anchor) and depth 5 (above ground, below buildings).
+
+### Decor atlas (2026-04-22)
+- Only `Ores.png` (128×128) packed into decor atlas as frame name `Ores`.
+- Ores.png may contain a 4-frame grid (64×64 per frame) of different ore types. Used as a static decoration for ore nodes.
+
+### Terrain GID ranges (2026-04-22)
+- Derived from terrain_base.png tileset composition:
+  - GIDs 1–160: grass (Grass_Tiles_1)
+  - GIDs 161–240: cobble road / path
+  - GIDs 241–368: farmland (FarmLand_Tile)
+  - GIDs 369–496: pavement / path
+  - GIDs 497–592: wooden deck / path
+  - GID 0 or negative: empty → treated as grass
+- `initTerrainFromGids()` in grid.ts reads the ground layer from WorldScene after `map.getLayer('ground').data`.
+
+### ResourceNodeSystem spawn parameters (2026-04-22)
+- 90 tree nodes on grass tiles, seeded LCG (seed 98765), avoiding farmland zone (rows 44–55, cols 8–55) and outer 6-tile ring (reserved for ore).
+- 22 ore deposits in a 5-tile band around all 4 map edges.
+- Density computed as sum(node.volume) / (count × 100). Returns 0 if no nodes in radius.
+- Depletion spread evenly across all non-depleted nodes in radius each tick.
+
+### EconomySystem — resource-aware production (2026-04-22)
+- `addBuilding(def, col, row)` stores position; tick uses it to query ResourceNodeSystem density.
+- For `requiresTrees` buildings: `effective_output = workerSlots × base × treeDensity`; depletes equivalent volume from nearby trees.
+- For `requiresOre` buildings: same pattern with ore nodes.
+- For flat producers (farm, windmill): `effective_output = workerSlots × base` (no density modifier).
+- `getEffectiveRate(def, col, row)` and `getResourceMessage(def, col, row)` are synchronous queries used by the info panel on click.
+
+### BuildSystem click-selection (2026-04-22)
+- Placed building sprites have `setInteractive({ useHandCursor: true })`. Click emits `building:selected` with `PlacedBuildingData`.
+- `checkBuildingClick(pointer)` is the fallback when no placement is active — it checks tile coordinates against the placed-buildings list (handles clicks that miss the sprite hit area).
+- Clicking empty space emits `building:deselected`.
+- `building:selected` → WorldScene enriches → `building:info` → UIScene shows panel.
+
+---
+
 ## BuildSystem (2026-04-22)
 
 ### Ghost sprite anchor and placement (2026-04-22)
