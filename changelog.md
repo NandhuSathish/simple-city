@@ -4,6 +4,41 @@ All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---
 
+## [Phase 2 — Build system MVP] 2026-04-22
+
+Goal: Grid-based building placement with ghost sprite and validation. No resource costs.
+
+### Added
+- **`src/utils/grid.ts`** — 2D occupancy array sized to the tilemap. Functions: `initGrid(cols, rows)`, `worldToTile(x, y)`, `tileToWorld(col, row)`, `isFree(col, row, w, h)`, `occupy(col, row, w, h, id)`, `release(col, row, w, h)`.
+- **`src/types.ts`** — Added `TerrainType`, `Footprint`, and `BuildingDef` interfaces.
+- **`src/data/buildingCatalog.ts`** — 3 starter buildings: `wood_house_blue` (2×2), `windmill` (2×3), `well` (1×1). Each has `spriteFrame`, `footprint`, and `terrainAllowed`.
+- **`tools/pack-atlases.js`** — CLI packer using free-tex-packer-core. Globs all PNGs from `G:/Cute_Fantasy/Buildings/Buildings/` plus `Well.png`, emits `public/assets/atlases/buildings.{png,json}`. Run: `npm run pack:atlases`.
+- **`tools/pack-atlases.ts`** — TypeScript-documented version of the above (kept for reference); run the .js version due to `--experimental-strip-types` bug with inline callback type annotations (see knowledge.md).
+- **`src/systems/BuildSystem.ts`** — Ghost sprite follows cursor snapped to tile grid. Tints green (`0x00ff00`) if footprint is free, red (`0xff0000`) if blocked or out of bounds. Left-click commits placement, marks occupancy, places permanent sprite, emits `building:placed`. Right-click or Esc cancels.
+- **`public/assets/atlases/buildings.{png,json}`** — Generated 4096×1086 atlas, 155 frames.
+- **`package.json`** — Added `pack:atlases` script.
+
+### Changed
+- **`src/scenes/PreloadScene.ts`** — Added `this.load.atlas('buildings', ...)` to load the buildings atlas.
+- **`src/scenes/WorldScene.ts`** — Calls `initGrid(map.width, map.height)` after map creation. Integrates `BuildSystem`. Adds number keys 1/2/3 (JustDown) to select buildings. Adds a fixed hint line at the bottom of the screen (`setScrollFactor(0)`).
+- **`.gitignore`** — Added `public/assets/atlases/*.json` (generated files alongside the already-ignored PNGs).
+- **`free-tex-packer-core@0.3.5`** — Added as dev dependency.
+
+### Discovered
+- See new entries in knowledge.md (atlas pipeline section).
+
+---
+
+## [Phase 2 — Zoom clamp & full-screen canvas] 2026-04-22
+
+Goal: Prevent camera from zooming out past the point where the dark background becomes visible. Make canvas fill the full browser window.
+
+### Changed
+- **`src/systems/InputSystem.ts`** — Removed static `ZOOM_MIN = 1`. Added `mapWidth`/`mapHeight` fields stored in `init()`. Initial zoom is now `Math.max(RENDER_SCALE, minZoom)`. Wheel handler computes `minZoom = Math.max(c.width / mapWidth, c.height / mapHeight)` each event so the tilemap always fills the viewport regardless of window size.
+- **`index.html`** — Changed `#app` from `width: 100vw; height: 100vh` to `position: fixed; inset: 0` for guaranteed full-viewport coverage.
+
+---
+
 ## [Phase 1 — Tilemap & camera] 2026-04-22 (revised)
 
 Goal: Scrollable, zoomable 64×64 Tiled map with god's-eye camera controls. No player avatar — this is a pure city builder.

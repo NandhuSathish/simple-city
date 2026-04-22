@@ -7,12 +7,14 @@ This file governs how every Claude Code session must behave in this project. Rea
 ## 1. Mandatory file updates after every coding session
 
 ### knowledge.md
+
 - After every session, append new entries under the appropriate section.
 - Record things that were **discovered, confirmed, or decided** that are not obvious from reading the code — e.g. sprite frame dimensions, Phaser 4 API quirks, asset folder structure, build tool behaviour.
 - Format: `### [Topic]` heading, then bullet points. Date each entry `(YYYY-MM-DD)`.
 - Never delete old entries. Mark outdated ones with `~~strikethrough~~` and add a correction below.
 
 ### changelog.md
+
 - Every change made during a session must be logged here.
 - One entry per Phase / session, under a `## [Phase N — Title] YYYY-MM-DD` heading.
 - Use sub-bullets for individual file changes: `- **Added** / **Changed** / **Removed** / **Fixed**`.
@@ -40,7 +42,15 @@ This file governs how every Claude Code session must behave in this project. Rea
 
 ---
 
-## 4. Asset pipeline rules
+## 4. Documentation search
+
+- **Use Context7 (`mcp__context7`) for all library API lookups** — Phaser 4, Vite, TypeScript, free-tex-packer-core, Jimp, etc.
+- Before assuming an API exists or guessing a method signature, resolve the library ID with `mcp__context7__resolve-library-id` and fetch docs with `mcp__context7__get-library-docs`.
+- This avoids the class of bugs where TypeScript global namespace declarations (e.g. `declare namespace Phaser`) let `tsc` pass but the runtime value doesn't exist.
+
+---
+
+## 5. Asset pipeline rules
 
 - Source assets live at `G:\Cute_Fantasy\` (outside the repo).
 - Built atlases go to `public/assets/atlases/` and are regenerated via `node tools/pack-atlases.ts`.
@@ -48,9 +58,10 @@ This file governs how every Claude Code session must behave in this project. Rea
 
 ---
 
-## 5. Definition of done (per phase)
+## 6. Definition of done (per phase)
 
 A phase is done when:
+
 1. `npm run dev` starts without errors.
 2. `tsc --noEmit` reports zero errors.
 3. `npm run build` completes without errors.
@@ -59,7 +70,7 @@ A phase is done when:
 
 ---
 
-## 6. Do not do these things
+## 7. Do not do these things
 
 - Do not run `npm install` for packages not listed in `PLAN.md §1` without confirming with the user.
 - Do not push to any remote without explicit user instruction.

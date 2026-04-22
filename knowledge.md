@@ -7,6 +7,18 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ## Phaser 4
 
+### Phaser global namespace is NOT available at runtime (2026-04-22)
+- `phaser.d.ts` declares `declare namespace Phaser { ... }` as a global TypeScript namespace, so `Phaser.Input.Keyboard.KeyCodes.ONE` passes `tsc --noEmit` with zero errors.
+- At **runtime** in Vite's ESM bundle, `Phaser` is never assigned to `window`. The ESM exports (`Input`, `Scene`, `Math`, …) are named exports only.
+- **Rule:** never reference `Phaser.*` as a runtime value. Use named imports instead:
+  ```ts
+  import { Input, Math as PhaserMath } from 'phaser';
+  Input.Keyboard.KeyCodes.ONE   // ✓ runtime value
+  Phaser.Input.Keyboard.Key     // ✓ TYPE annotation only (stripped at compile time)
+  Phaser.Input.Keyboard.KeyCodes.ONE  // ✗ ReferenceError at runtime
+  ```
+- `Phaser.*` is safe ONLY in TypeScript type positions (parameter types, return types, interface fields) — those are erased during compilation and never reach the browser.
+
 ### Module / Import style (2026-04-22)
 - Phaser 4.0.0 ships a webpack-bundled ESM at `dist/phaser.esm.js`. Named imports work correctly:
   ```ts
@@ -25,6 +37,16 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 - Preferred pattern: place all sprites at their **native pixel size** in world space, then apply `this.cameras.main.setZoom(RENDER_SCALE)` in the scene.
 - This is cleaner than `setDisplaySize` or `setScale` on every sprite.
 - With RENDER_SCALE=2, the camera renders 400×300 world pixels onto an 800×600 canvas — effectively 2× zoom.
+
+### Dynamic minimum zoom to prevent showing background outside map (2026-04-22)
+- Static `ZOOM_MIN = 1` lets the user zoom out far enough to see the dark `#1a1a2e` Phaser background outside the tilemap.
+- Correct pattern: compute `minZoom` from live camera and map dimensions each wheel event:
+  ```ts
+  const minZoom = Math.max(c.width / this.mapWidth, c.height / this.mapHeight);
+  ```
+- `c.width` / `c.height` are the Phaser camera viewport dimensions in screen pixels (not affected by zoom). This formula ensures the world is always at least as large as the viewport.
+- Also apply this to the *initial* zoom in `init()` so that on very wide/tall screens, RENDER_SCALE isn't too small: `cam.setZoom(Math.max(RENDER_SCALE, minZoom))`.
+- `cam.setBounds()` still needed to prevent panning outside map edges — zoom clamp prevents seeing outside via zoom, bounds prevent seeing outside via pan.
 
 ### Scene transitions (2026-04-22)
 - `this.scene.start('NextScene')` stops the current scene and starts the target.
@@ -142,3 +164,57 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 - Assets source: `G:\Cute_Fantasy\` (outside the project, never committed)
 - Phase 0 assets in `public/assets/`: `grass_tile.png`, `player.png` (copied manually, .gitignored)
 - Future atlases will go in `public/assets/atlases/` (generated, also .gitignored)
+
+---
+
+## Atlas pipeline — free-tex-packer-core (2026-04-22)
+
+### Bug: removeFileExtension:true clobbers paths without a dot-extension
+- If the image `path` field has no file extension (e.g. `"House_1_Wood_Base_Blue"`), setting `removeFileExtension: true` produces an empty string `""` as the frame name — all frames collapse to `""`, and `JSON.parse` keeps only the last one.
+- **Fix:** pass the full filename including `.png` extension in `path` (e.g. `path: basename(filePath)`), then let `removeFileExtension: true` strip it. This produces the correct frame name `"House_1_Wood_Base_Blue"`.
+- Verified: 155 frames in atlas, `House_1_Wood_Base_Blue`, `Windmill`, and `Well` all present.
+
+### Bug: detectIdentical:true deduplicates all kenmi-art sprites into one
+- With `detectIdentical: true` and the full 155-sprite buildings set, the packer collapses everything to a single frame. Root cause unknown (the sprites are visually distinct).
+- **Fix:** always use `detectIdentical: false` for this pack.
+
+### Bug: packAsync method has broken path passthrough
+- `free-tex-packer-core@0.3.5` exports `packAsync` as a named property, but it does not correctly pass the `path` field to the output frame names.
+- The callback API (`packer(images, options, callback)`) works correctly.
+- `tools/pack-atlases.js` uses the callback form wrapped manually.
+
+### Bug: --experimental-strip-types breaks callback type annotations in .ts files
+- Running `node --experimental-strip-types tools/pack-atlases.ts` with inline TypeScript type annotations on callback parameters (e.g. `(files: Array<{name: string; buffer: Buffer}>, err: Error | null) => void`) causes the callback to receive malformed data — all frame names become empty strings.
+- The same code runs correctly when: (a) piped via stdin with `node --experimental-strip-types -`, (b) passed as a plain `.js` file.
+- **Fix:** the actual atlas packer is `tools/pack-atlases.js` (plain ESM). The `.ts` file is kept for documentation / cross-referencing but `npm run pack:atlases` invokes the `.js` version.
+
+### Building sprite dimensions (2026-04-22)
+- `House_1_Wood_Base_Blue.png`: **96×128 px**, footprint 2×2 tiles (32×32 px).
+- `Windmill.png`: **128×112 px**, footprint 2×3 tiles (32×48 px).
+- `Well.png`: **32×48 px**, footprint 1×1 tile (16×16 px).
+- All three sprites are taller than their tile footprint — typical kenmi-art style. Origin `(0.5, 1)` anchors the sprite bottom-center to the bottom edge of the footprint; the art extends upward naturally.
+
+### Atlas frame naming convention (2026-04-22)
+- Frame keys in `buildings.json` are bare filenames without the `.png` extension: `"House_1_Wood_Base_Blue"`, `"Windmill"`, `"Well"`, etc.
+- `prependFolderName: false` is required to prevent folder paths (e.g. `Houses/Wood/`) from being prepended to frame names.
+- The `spriteFrame` field in `BuildingDef` must match these exact keys.
+
+---
+
+## BuildSystem (2026-04-22)
+
+### Ghost sprite anchor and placement (2026-04-22)
+- Ghost and placed sprites use `setOrigin(0.5, 1)` (bottom-center).
+- World position formula: `x = (col + fp.w/2) * TILE_SIZE`, `y = (row + fp.h) * TILE_SIZE` — places the bottom-center of the sprite at the bottom edge of the footprint.
+- Cursor-to-footprint snap: `topLeftCol = cursorTile.col - Math.floor(fp.w/2)`, same for row — centers the footprint under the cursor tile.
+- Ghost alpha: `0.65`. Depth: `50` (above terrain, below any future UI overlay). Placed buildings: depth `30`.
+
+### Phaser 4 tinting for ghost validation (2026-04-22)
+- `sprite.setTint(0x00ff00)` for valid placement, `sprite.setTint(0xff0000)` for invalid.
+- Plain `setTint` is sufficient for green/red validation feedback. Phaser 4 filter system reserved for Phase 6 glow/bloom on magic buildings.
+- `sprite.clearTint()` is NOT needed — the ghost is destroyed on cancel/place and recreated fresh each time `startPlacing()` is called.
+
+### Pointer event listener notes (2026-04-22)
+- `this.scene.input.on('pointermove', cb, this)` — passes `Phaser.Input.Pointer`, not a plain `{x,y}`. Use `pointer.x/y` for screen coords, then `cam.getWorldPoint(pointer.x, pointer.y)` to get world coords.
+- Right-click fires `pointerdown` with `pointer.button === 2`. Phaser 4 does NOT suppress the browser context menu by default inside the canvas — for Phase 3, add `this.input.mouse?.disableContextMenu()` if context menus appear.
+- `keyboard.on('keydown-ESC', cb, this)` — fires on every keydown, not just JustDown. Safe here because cancel is idempotent.

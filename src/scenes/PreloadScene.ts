@@ -8,6 +8,7 @@ export class PreloadScene extends Scene {
   preload(): void {
     this.load.tilemapTiledJSON('world', 'assets/maps/world.tmj');
     this.load.image('terrain_base', 'assets/tilesets/terrain_base.png');
+    this.load.atlas('buildings', 'assets/atlases/buildings.png', 'assets/atlases/buildings.json');
   }
 
   create(): void {

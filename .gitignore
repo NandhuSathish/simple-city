@@ -12,8 +12,9 @@ dist
 dist-ssr
 *.local
 
-# Compiled atlas outputs (rebuild with: node tools/pack-atlases.ts)
+# Compiled atlas outputs (rebuild with: npm run pack:atlases)
 public/assets/atlases/*.png
+public/assets/atlases/*.json
 public/assets/tilesets/*.png
 
 # Raw asset sources — Premium licence forbids redistribution

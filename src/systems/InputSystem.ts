@@ -5,7 +5,6 @@ const PAN_ACCEL  = 1200;  // world px / s²
 const PAN_FRICTION = 10;  // exponential decay rate per second when no key held
 const PAN_MAX    = 400;   // world px / s cap
 const ZOOM_STEP  = 0.002; // zoom change per wheel delta unit
-const ZOOM_MIN   = 1;
 const ZOOM_MAX   = 4;
 
 interface KeyLike { isDown: boolean }
@@ -14,6 +13,8 @@ export class InputSystem {
   private readonly scene: Scene;
   private velX = 0;
   private velY = 0;
+  private mapWidth = 0;
+  private mapHeight = 0;
   private isDragging = false;
   private dragStartX = 0;
   private dragStartY = 0;
@@ -29,8 +30,11 @@ export class InputSystem {
   }
 
   init(mapWidth: number, mapHeight: number): void {
+    this.mapWidth  = mapWidth;
+    this.mapHeight = mapHeight;
     const cam = this.scene.cameras.main;
-    cam.setZoom(RENDER_SCALE);
+    const minZoom = Math.max(cam.width / mapWidth, cam.height / mapHeight);
+    cam.setZoom(Math.max(RENDER_SCALE, minZoom));
     cam.setBounds(0, 0, mapWidth, mapHeight);
     cam.centerOn(mapWidth / 2, mapHeight / 2);
 
@@ -51,8 +55,9 @@ export class InputSystem {
       'wheel',
       (ptr: { x: number; y: number }, _gos: unknown, _dx: number, dy: number) => {
         const c = this.scene.cameras.main;
+        const minZoom = Math.max(c.width / this.mapWidth, c.height / this.mapHeight);
         const oldZoom = c.zoom;
-        const newZoom = PhaserMath.Clamp(oldZoom - dy * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX);
+        const newZoom = PhaserMath.Clamp(oldZoom - dy * ZOOM_STEP, minZoom, ZOOM_MAX);
         if (newZoom === oldZoom) return;
 
         // World-space position under the cursor must stay fixed after zoom
