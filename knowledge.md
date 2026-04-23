@@ -5,6 +5,37 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ---
 
+## Phase 5 Bugfixes (2026-04-23)
+
+### Phaser 4 Rectangle fillAlpha vs game-object alpha
+- `this.add.rectangle(x, y, w, h, color, fillAlpha)` — the 6th argument is the **fill** alpha, separate from the game-object's `alpha` property.
+- Tweening `alpha` on an object created with `fillAlpha=0` has zero visible effect: final visual = `fillAlpha × objectAlpha = 0 × anything = 0`.
+- **Fix pattern for a fading overlay:** create with `fillAlpha=1`, set the game-object alpha to 0 via `setAlpha(0)`, then tween `alpha` between 0 (transparent) and the target opacity.
+
+### BuildSystem — placement mode persists after place (bug, now fixed)
+- After placing a building, `activeDef` was never cleared, so the placed building's sprite handler (`if (this.activeDef) return`) silently swallowed any immediate click on it.
+- **Root cause of assign panel never appearing:** user places a building → still in placement mode → click on it ignored → `building:selected` never emitted.
+- **Fix:** call `this.cancel()` immediately after a successful placement. One click = place once = return to select mode automatically.
+
+### TimeSystem initial state mismatch (bug, now fixed)
+- `_gameHour` was 6 but `_minuteOfDay` was 0. First tick set both to 1, resetting the clock to 1am.
+- **Fix:** initialise `_minuteOfDay = 6` to match the starting `_gameHour`.
+
+### Sprite-defs pipeline (2026-04-23)
+- `src/data/sprite-defs.json` is the canonical config for all sprite sheets managed through the Sprite Configurator tool.
+- `pack-atlases.js` reads it at build time; `Animal.ts` and `PreloadScene.ts` import it statically (Vite handles JSON imports natively — no `fetch` needed).
+- Frame naming: `{id}_{animName}_{frameIndex}` (e.g. `chicken_01_walk_0`).
+- `flipForOpposite: true` → only one direction of frames is packed; `sprite.setFlipX()` produces the mirrored direction at runtime. No second animation is registered.
+- Source PNGs live in `public/assets/source/{atlasGroup}/` after upload via `npm run sprites`.
+
+### Animal sprite sheets — correct structure confirmed (2026-04-23)
+- **Previous assumption was wrong:** `Chicken_01.png` is NOT a single frame — it is a full spritesheet for one color variant.
+- Each `Chicken_NN.png` = one color variant. Rows = animations; columns = frames per animation.
+- Frame size confirmed: 32×32 px (256 px wide ÷ variable cols depending on animation row).
+- The old `ANIMAL_FRAMES` array (which listed `Chicken_01`…`Chicken_18` as individual frames) was incorrect and has been removed.
+
+---
+
 ## Phaser 4
 
 ### Phaser global namespace is NOT available at runtime (2026-04-22)

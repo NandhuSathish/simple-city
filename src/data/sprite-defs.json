@@ -1,0 +1,54 @@
+{
+  "spritesheets": [
+    {
+      "id": "chicken_01",
+      "category": "chicken",
+      "srcFile": "animals/Chicken_01.png",
+      "atlasGroup": "animals",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "animations": [
+        {
+          "name": "chicken_1_idle",
+          "row": 0,
+          "cols": 2
+        },
+        {
+          "name": "chicken_1_walk_left",
+          "row": 1,
+          "cols": 6,
+          "flipForOpposite": true
+        },
+        {
+          "name": "chicken_1_eating_left",
+          "row": 2,
+          "cols": 8,
+          "flipForOpposite": true
+        },
+        {
+          "name": "chicken_1_stand_to_sitting_left",
+          "row": 3,
+          "cols": 3
+        },
+        {
+          "name": "chicken_1_sit_to_stand_left",
+          "row": 4,
+          "cols": 3,
+          "flipForOpposite": true
+        },
+        {
+          "name": "chicken_1_sleeping_left",
+          "row": 6,
+          "cols": 8,
+          "flipForOpposite": true
+        },
+        {
+          "name": "chicken_1_died_left",
+          "row": 7,
+          "cols": 4,
+          "flipForOpposite": true
+        }
+      ]
+    }
+  ]
+}

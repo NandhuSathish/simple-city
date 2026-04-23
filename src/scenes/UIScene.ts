@@ -3,6 +3,7 @@ import { ResourceBar } from '../ui/ResourceBar';
 import { BuildMenu } from '../ui/BuildMenu';
 import { BuildingInfoPanel } from '../ui/BuildingInfoPanel';
 import { VillagerAssignPanel } from '../ui/VillagerAssignPanel';
+import { ClockWidget } from '../ui/ClockWidget';
 import type { Resources } from '../systems/EconomySystem';
 import type { BuildingInfo, PlacedBuildingData } from '../types';
 import type { WorldScene } from './WorldScene';
@@ -12,6 +13,7 @@ export class UIScene extends Scene {
   private buildMenu!:        BuildMenu;
   private infoPanel!:        BuildingInfoPanel;
   private assignPanel!:      VillagerAssignPanel;
+  private clockWidget!:      ClockWidget;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -24,12 +26,17 @@ export class UIScene extends Scene {
     this.buildMenu   = new BuildMenu(this, (key: string) => {
       world.events.emit('build:start', key);
     });
-    this.infoPanel  = new BuildingInfoPanel(this);
+    this.infoPanel   = new BuildingInfoPanel(this);
     this.assignPanel = new VillagerAssignPanel(this, world.getVillagerSystem());
+    this.clockWidget = new ClockWidget(this);
 
     world.events.on('economy:changed', (res: Resources) => {
       this.resourceBar.update(res);
       this.buildMenu.onResourceUpdate(res);
+    }, this);
+
+    world.events.on('time:tick', (data: { hour: number; day: number }) => {
+      this.clockWidget.update(data.hour, data.day);
     }, this);
 
     world.events.on('building:info', (info: BuildingInfo) => {

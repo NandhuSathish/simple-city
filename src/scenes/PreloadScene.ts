@@ -1,4 +1,21 @@
 import { Scene } from 'phaser';
+import spriteDefs from '../data/sprite-defs.json';
+
+interface AnimDef {
+  name:             string;
+  row:              number;
+  cols:             number;
+  flipForOpposite?: boolean;
+}
+interface SpriteSheetDef {
+  id:          string;
+  category:    string;
+  srcFile:     string;
+  atlasGroup:  string;
+  frameWidth:  number;
+  frameHeight: number;
+  animations:  AnimDef[];
+}
 
 // ─── NPC sheet definitions ────────────────────────────────────────────────────
 // Frame layout confirmed from reference image (knowledge.md §NPC spritesheets):
@@ -41,21 +58,7 @@ const WORK_ANIMS: Record<string, Array<{ name: string; row: number }>> = {
   farmer_buba:      [{ name: 'work_plant',   row: 8 }, { name: 'work_harvest', row: 9 }],
 };
 
-// Animal frame sequences
-const ANIMAL_ANIMS = [
-  {
-    key: 'animal_chicken',
-    frames: Array.from({ length: 18 }, (_, i) => `Chicken_${String(i + 1).padStart(2, '0')}`),
-  },
-  {
-    key: 'animal_cow',
-    frames: Array.from({ length: 9  }, (_, i) => `Cow_${String(i + 1).padStart(2, '0')}`),
-  },
-  {
-    key: 'animal_pig',
-    frames: Array.from({ length: 16 }, (_, i) => `Pig_${String(i + 1).padStart(2, '0')}`),
-  },
-];
+// Animal animations are registered dynamically from src/data/sprite-defs.json.
 
 export class PreloadScene extends Scene {
   constructor() {
@@ -121,13 +124,22 @@ export class PreloadScene extends Scene {
   }
 
   private registerAnimalAnims(): void {
-    for (const anim of ANIMAL_ANIMS) {
-      this.anims.create({
-        key:       anim.key,
-        frames:    anim.frames.map(f => ({ key: 'animals', frame: f })),
-        frameRate: 8,
-        repeat:    -1,
-      });
+    const sheets = (spriteDefs as { spritesheets: SpriteSheetDef[] }).spritesheets
+      .filter(s => s.atlasGroup === 'animals');
+
+    for (const sheet of sheets) {
+      for (const anim of sheet.animations) {
+        const frames = Array.from({ length: anim.cols }, (_, i) => ({
+          key:   'animals',
+          frame: `${sheet.id}_${anim.name}_${i}`,
+        }));
+        this.anims.create({
+          key:       `${sheet.id}_${anim.name}`,
+          frames,
+          frameRate: 8,
+          repeat:    -1,
+        });
+      }
     }
   }
 }

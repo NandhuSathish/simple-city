@@ -111,9 +111,11 @@ export class WorldScene extends Scene {
       this.events.emit('building:workplace:deselected');
     });
 
-    // Day/night overlay — fixed to screen, scrolls with nothing
+    // Day/night overlay — fixed to screen, scrolls with nothing.
+    // fillAlpha must be 1; we tween the game-object alpha (0=transparent, 0.6=night).
     this.dayNightOverlay = this.add
-      .rectangle(0, 0, GAME_WIDTH * 4, GAME_HEIGHT * 4, 0x1a2255, 0)
+      .rectangle(0, 0, GAME_WIDTH * 4, GAME_HEIGHT * 4, 0x1a2255, 1)
+      .setAlpha(0)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(DEPTH_OVERLAY);

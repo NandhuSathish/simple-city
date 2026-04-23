@@ -145,10 +145,13 @@ export class BuildSystem {
 
     sprite.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.button !== 0) return;
-      if (this.activeDef) return; // ignore selection clicks during placement
+      if (this.activeDef) return;
       ptr.event.stopPropagation();
       this.scene.events.emit('building:selected', data);
     });
+
+    // Exit placement mode after one placement so the building is immediately clickable.
+    this.cancel();
 
     this.scene.events.emit('building:placed', data);
   }

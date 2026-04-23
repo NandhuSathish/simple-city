@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sprite Sheet Configurator — Cute Fantasy</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117; color: #c9d1d9;
+      font-family: 'Segoe UI', monospace; font-size: 13px;
+      display: flex; height: 100vh; overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 300px; min-width: 300px; background: #161b22;
+      border-right: 1px solid #30363d; display: flex;
+      flex-direction: column; overflow-y: auto;
+    }
+    .section { padding: 12px; border-bottom: 1px solid #21262d; display: flex; flex-direction: column; gap: 8px; }
+    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #8b949e; letter-spacing: .06em; }
+    label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
+    input[type=text], input[type=number], select {
+      width: 100%; background: #0d1117; color: #c9d1d9;
+      border: 1px solid #30363d; border-radius: 4px;
+      padding: 5px 8px; font-family: monospace; font-size: 12px;
+    }
+    input:focus, select:focus { outline: none; border-color: #58a6ff; }
+    .row2 { display: flex; gap: 8px; }
+    .row2 > div { flex: 1; }
+    button {
+      width: 100%; padding: 7px; border: none; border-radius: 4px;
+      cursor: pointer; font-size: 12px; font-weight: 600; transition: background .15s;
+    }
+    .btn-green  { background: #238636; color: #fff; }
+    .btn-green:hover  { background: #2ea043; }
+    .btn-blue   { background: #1f6feb; color: #fff; }
+    .btn-blue:hover   { background: #388bfd; }
+    .btn-orange { background: #9e6a03; color: #fff; }
+    .btn-orange:hover { background: #d29922; }
+    .btn-grey   { background: #21262d; color: #c9d1d9; }
+    .btn-grey:hover   { background: #30363d; }
+    .btn-red    { background: #6e1818; color: #fff; }
+    .btn-red:hover    { background: #8f1919; }
+    button:disabled   { opacity: .4; cursor: default; background: #21262d !important; }
+    .hint { font-size: 10px; color: #484f58; }
+    .chip { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+    .chip-green { background: #0f3d16; color: #56d364; }
+    .chip-red   { background: #3d0f0f; color: #f87171; }
+    .chip-grey  { background: #21262d; color: #8b949e; }
+
+    /* ── Server status bar ── */
+    #status-bar-top {
+      padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+      background: #0d1117; border-bottom: 1px solid #21262d; font-size: 12px;
+    }
+
+    /* ── Sprite library ── */
+    .lib-entry {
+      background: #1c2128; border: 1px solid #30363d; border-radius: 4px;
+      padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer;
+    }
+    .lib-entry:hover { border-color: #58a6ff; }
+    .lib-entry.active { border-color: #2ea043; }
+    .lib-entry-name { color: #79c0ff; font-weight: 600; font-size: 11px; }
+    .lib-entry-meta { color: #484f58; font-size: 10px; }
+    .lib-entry-btns { display: flex; gap: 4px; flex-shrink: 0; }
+    .lib-entry-btns button { width: auto; padding: 2px 6px; font-size: 10px; }
+
+    /* ── Anim list ── */
+    .anim-row {
+      background: #1c2128; border: 1px solid #30363d; border-radius: 4px;
+      padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .anim-row-name { color: #79c0ff; font-weight: 600; }
+    .anim-row-meta { color: #484f58; font-size: 10px; margin-top: 1px; }
+    .anim-row button { width: auto; padding: 2px 7px; font-size: 10px; }
+
+    /* ── Canvas area ── */
+    #canvas-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #drop-zone {
+      flex: 1; overflow: auto; padding: 20px;
+      display: flex; align-items: flex-start; justify-content: flex-start;
+      position: relative; min-height: 200px;
+    }
+    #drop-hint {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #484f58; pointer-events: none; gap: 8px;
+    }
+    #drop-hint .big { font-size: 52px; }
+    canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+    #coord-bar {
+      height: 22px; background: #161b22; border-top: 1px solid #21262d;
+      display: flex; align-items: center; padding: 0 12px;
+      font-size: 10px; color: #484f58; gap: 20px;
+    }
+    #coord-bar span { color: #8b949e; }
+
+    /* ── Build output ── */
+    #build-out {
+      font-family: monospace; font-size: 10px; white-space: pre-wrap;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+      padding: 8px; max-height: 160px; overflow-y: auto; color: #8b949e;
+      display: none;
+    }
+    #build-out.visible { display: block; }
+    #build-out .ok  { color: #56d364; }
+    #build-out .err { color: #f87171; }
+
+    .divider { height: 1px; background: #30363d; margin: 2px 0; }
+    #form-row-hint { font-size: 11px; color: #8b949e; }
+    #sel-row-indicator {
+      padding: 4px 8px; background: #1c2128; border: 1px solid #30363d;
+      border-radius: 4px; font-size: 11px; color: #58a6ff; display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="sidebar">
+
+  <!-- ── Server status ─────────────────────────────────────────────────────── -->
+  <div id="status-bar-top">
+    <span style="font-size:14px; font-weight:700; color:#f0f6fc; flex:1">
+      Sprite Configurator
+    </span>
+    <span id="srv-chip" class="chip chip-grey">checking…</span>
+  </div>
+
+  <!-- ── Sprite library ───────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Sprite Library</div>
+    <div id="lib-list"><div class="hint">No sprites configured yet</div></div>
+    <button class="btn-grey" onclick="newSprite()">+ New Sprite</button>
+  </div>
+
+  <!-- ── Upload ───────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Upload PNG</div>
+    <button class="btn-grey" onclick="document.getElementById('fileInput').click()">
+      Choose PNG File
+    </button>
+    <input type="file" id="fileInput" accept="image/png,image/*" style="display:none" onchange="onFileChosen(event)">
+    <div class="hint">Or drag &amp; drop a PNG onto the canvas →</div>
+    <div id="upload-status" class="hint" style="display:none"></div>
+    <div id="sprite-info" style="display:none; font-size:11px; color:#8b949e">
+      <span id="info-filename" style="color:#c9d1d9"></span><br>
+      <span id="info-size" style="color:#58a6ff"></span>
+    </div>
+  </div>
+
+  <!-- ── Grid ─────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Grid Setup</div>
+    <div style="font-size:10px; color:#484f58">Set frame size OR col/row count — both sync automatically.</div>
+    <div class="row2">
+      <div><label>Frame W (px)</label><input type="number" id="frame-w" value="48" min="1" onchange="onFrameSizeChange()"></div>
+      <div><label>Frame H (px)</label><input type="number" id="frame-h" value="48" min="1" onchange="onFrameSizeChange()"></div>
+    </div>
+    <div style="text-align:center; color:#484f58; font-size:10px">— or —</div>
+    <div class="row2">
+      <div><label>Columns</label><input type="number" id="grid-cols" value="" min="1" placeholder="auto" onchange="onGridColsChange()"></div>
+      <div><label>Rows</label><input type="number" id="grid-rows" value="" min="1" placeholder="auto" onchange="onGridRowsChange()"></div>
+    </div>
+  </div>
+
+  <!-- ── Label row ─────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Label Row</div>
+    <div id="form-row-hint">Click a row in the canvas to select it</div>
+    <div id="sel-row-indicator">Row <strong id="sel-row-num">—</strong> selected</div>
+    <div>
+      <label>Animation name</label>
+      <input type="text" id="anim-name" placeholder="idle / walk / eat / attack …">
+    </div>
+    <div class="row2">
+      <div><label>Frame count (cols used)</label><input type="number" id="anim-cols" value="4" min="1"></div>
+      <div style="display:flex; align-items:center; gap:6px; padding-top:16px">
+        <input type="checkbox" id="anim-flip">
+        <label for="anim-flip" style="cursor:pointer; margin:0">Flip for opposite dir</label>
+      </div>
+    </div>
+    <button class="btn-blue" onclick="saveRow()" id="save-row-btn" disabled>Save Row</button>
+  </div>
+
+  <!-- ── Animations list ───────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Animations <span id="anim-count" style="color:#484f58; font-size:10px"></span></div>
+    <div id="anim-list"><div class="hint">No animations defined yet</div></div>
+  </div>
+
+  <!-- ── Sprite settings ───────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Sprite Settings</div>
+    <div>
+      <label>Sprite ID (unique, e.g. chicken_01)</label>
+      <input type="text" id="spr-id" placeholder="chicken_01">
+    </div>
+    <div>
+      <label>Category</label>
+      <select id="spr-cat">
+        <option value="chicken">chicken</option>
+        <option value="cow">cow</option>
+        <option value="pig">pig</option>
+        <option value="sheep">sheep</option>
+        <option value="npc">npc</option>
+        <option value="other">other</option>
+      </select>
+    </div>
+    <div>
+      <label>Atlas group</label>
+      <select id="spr-group">
+        <option value="animals">animals</option>
+        <option value="npcs">npcs</option>
+        <option value="misc">misc</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── Save + Build ──────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="sec-title">Save &amp; Build</div>
+    <button class="btn-green" onclick="saveConfig()" id="save-btn">Save to sprite-defs.json</button>
+    <div class="divider"></div>
+    <button class="btn-orange" onclick="buildAtlas()" id="build-btn">Build Atlas (pack-atlases.js)</button>
+    <pre id="build-out"></pre>
+    <div class="hint" id="build-hint" style="display:none">
+      After a successful build, restart <code>npm run dev</code> or press <kbd>Ctrl+Shift+F5</kbd> to reload the game.
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Canvas ─────────────────────────────────────────────────────────────── -->
+<div id="canvas-area">
+  <div id="drop-zone">
+    <div id="drop-hint">
+      <div class="big">🖼</div>
+      <p>Choose a PNG from the sidebar<br>or drag &amp; drop it here</p>
+      <p class="hint" style="margin-top:4px">Run <code>npm run sprites</code> to enable auto-upload</p>
+    </div>
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="coord-bar">
+    <span id="c-pos">Hover the canvas to see coordinates</span>
+    <span id="c-frame"></span>
+    <span id="c-anim"></span>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const SERVER = (location.protocol !== 'file:') ? '' : null;
+let img        = null;
+let animations = [];
+let selRow     = -1;
+let hoverRow   = -1;
+let currentSrcFile = '';   // set after successful upload
+let spriteDefs = { spritesheets: [] };  // loaded from server
+
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+// ── Server detection ──────────────────────────────────────────────────────────
+async function initServer() {
+  const chip = document.getElementById('srv-chip');
+  if (!SERVER && SERVER !== '') {
+    chip.textContent = 'file:// mode';
+    chip.className   = 'chip chip-grey';
+    return;
+  }
+  try {
+    const r = await fetch('/api/defs');
+    if (r.ok) {
+      spriteDefs = await r.json();
+      chip.textContent = 'Server connected';
+      chip.className   = 'chip chip-green';
+      renderLibrary();
+    }
+  } catch {
+    chip.textContent = 'No server';
+    chip.className   = 'chip chip-red';
+    chip.title       = 'Run: npm run sprites';
+  }
+}
+
+// ── Library ───────────────────────────────────────────────────────────────────
+function renderLibrary() {
+  const list = document.getElementById('lib-list');
+  const sheets = spriteDefs.spritesheets || [];
+  if (!sheets.length) {
+    list.innerHTML = '<div class="hint">No sprites configured yet</div>';
+    return;
+  }
+  list.innerHTML = sheets.map((s, i) => `
+    <div class="lib-entry" id="lib-${i}" onclick="loadFromLib(${i})">
+      <div>
+        <div class="lib-entry-name">${s.id}</div>
+        <div class="lib-entry-meta">${s.category} · ${s.atlasGroup} · ${s.animations?.length ?? 0} anims</div>
+      </div>
+      <div class="lib-entry-btns">
+        <button class="btn-grey" onclick="event.stopPropagation(); deleteFromLib(${i})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadFromLib(index) {
+  const s = spriteDefs.spritesheets[index];
+  if (!s) return;
+  document.getElementById('spr-id').value    = s.id;
+  document.getElementById('spr-cat').value   = s.category || 'other';
+  document.getElementById('spr-group').value = s.atlasGroup || 'animals';
+  document.getElementById('frame-w').value   = s.frameWidth  || 48;
+  document.getElementById('frame-h').value   = s.frameHeight || 48;
+  animations = (s.animations || []).map(a => ({ ...a }));
+  currentSrcFile = s.srcFile || '';
+  renderAnimList();
+  updateGridInfo();
+  if (img) redraw();
+  // Mark active
+  document.querySelectorAll('.lib-entry').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(`lib-${index}`);
+  if (el) el.classList.add('active');
+}
+
+function deleteFromLib(index) {
+  if (!confirm(`Delete "${spriteDefs.spritesheets[index]?.id}"?`)) return;
+  spriteDefs.spritesheets.splice(index, 1);
+  renderLibrary();
+}
+
+function newSprite() {
+  document.getElementById('spr-id').value    = '';
+  document.getElementById('spr-cat').value   = 'chicken';
+  document.getElementById('spr-group').value = 'animals';
+  animations    = [];
+  currentSrcFile = '';
+  selRow        = -1;
+  renderAnimList();
+  if (img) redraw();
+  document.querySelectorAll('.lib-entry').forEach(el => el.classList.remove('active'));
+}
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function onFileChosen(evt) {
+  const file = evt.target.files[0];
+  if (file) handleFile(file);
+}
+
+async function handleFile(file) {
+  loadImagePreview(file);
+  if (SERVER === null) return;  // file:// mode — preview only
+
+  const group    = document.getElementById('spr-group').value || 'animals';
+  const statusEl = document.getElementById('upload-status');
+  statusEl.style.display = '';
+  statusEl.textContent   = `Uploading ${file.name}…`;
+
+  try {
+    const r = await fetch(`/api/upload?group=${encodeURIComponent(group)}&filename=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      body:   file,
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+    const data = await r.json();
+    if (data.ok) {
+      currentSrcFile = data.srcFile;
+      statusEl.textContent = `✓ Saved to public/assets/source/${data.srcFile}`;
+      statusEl.style.color = '#56d364';
+      // Auto-fill sprite ID from filename if blank
+      if (!document.getElementById('spr-id').value) {
+        const base = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        document.getElementById('spr-id').value = base;
+      }
+    } else {
+      statusEl.textContent = 'Upload failed';
+      statusEl.style.color = '#f87171';
+    }
+  } catch (e) {
+    statusEl.textContent = `Upload error: ${e.message}`;
+    statusEl.style.color = '#f87171';
+  }
+}
+
+function loadImagePreview(file) {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    img = image;
+    canvas.width  = img.width;
+    canvas.height = img.height;
+    document.getElementById('drop-hint').style.display = 'none';
+    document.getElementById('sprite-info').style.display = '';
+    document.getElementById('info-filename').textContent = file.name;
+    document.getElementById('info-size').textContent = `${img.width} × ${img.height} px`;
+    updateGridInfo();
+    redraw();
+  };
+  image.src = url;
+}
+
+// Drag-and-drop on canvas area
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.outline = '2px solid #58a6ff'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.outline = ''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.style.outline = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+});
+
+// ── Grid sync ─────────────────────────────────────────────────────────────────
+let _lock = false;
+const fw = () => Math.max(1, parseInt(document.getElementById('frame-w').value) || 48);
+const fh = () => Math.max(1, parseInt(document.getElementById('frame-h').value) || 48);
+const numCols = () => img ? Math.floor(img.width  / fw()) : 0;
+const numRows = () => img ? Math.floor(img.height / fh()) : 0;
+
+function updateGridInfo() {
+  if (!img) return;
+  _lock = true;
+  document.getElementById('grid-cols').value = numCols();
+  document.getElementById('grid-rows').value = numRows();
+  document.getElementById('anim-cols').value = numCols();
+  _lock = false;
+}
+function onFrameSizeChange() {
+  if (_lock) return;
+  _lock = true;
+  if (img) { document.getElementById('grid-cols').value = numCols(); document.getElementById('grid-rows').value = numRows(); }
+  _lock = false;
+  redraw();
+}
+function onGridColsChange() {
+  if (_lock || !img) return;
+  _lock = true;
+  const cols = Math.max(1, parseInt(document.getElementById('grid-cols').value) || 1);
+  document.getElementById('frame-w').value = Math.floor(img.width / cols);
+  document.getElementById('grid-rows').value = numRows();
+  document.getElementById('anim-cols').value = cols;
+  _lock = false;
+  redraw();
+}
+function onGridRowsChange() {
+  if (_lock || !img) return;
+  _lock = true;
+  const rows = Math.max(1, parseInt(document.getElementById('grid-rows').value) || 1);
+  document.getElementById('frame-h').value = Math.floor(img.height / rows);
+  document.getElementById('grid-cols').value = numCols();
+  _lock = false;
+  redraw();
+}
+
+// ── Canvas drawing ────────────────────────────────────────────────────────────
+function animForRow(r) { return animations.find(a => a.row === r) || null; }
+
+function redraw() {
+  if (!img) return;
+  const cw = fw(), ch = fh(), cols = numCols(), rows = numRows();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  for (let r = 0; r < rows; r++) {
+    const a = animForRow(r);
+    let fill = null;
+    if (a)             fill = 'rgba(56,211,97,.22)';
+    else if (r===selRow)   fill = 'rgba(255,210,50,.28)';
+    else if (r===hoverRow) fill = 'rgba(88,166,255,.12)';
+    if (fill) { ctx.fillStyle = fill; ctx.fillRect(0, r*ch, cols*cw, ch); }
+  }
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,0,.45)'; ctx.lineWidth = 1;
+  for (let r=0; r<=rows; r++) { ctx.beginPath(); ctx.moveTo(0,r*ch); ctx.lineTo(cols*cw,r*ch); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(255,255,255,.15)';
+  for (let c=0; c<=cols; c++) { ctx.beginPath(); ctx.moveTo(c*cw,0); ctx.lineTo(c*cw,rows*ch); ctx.stroke(); }
+
+  // Row labels
+  ctx.font = 'bold 11px monospace';
+  for (let r=0; r<rows; r++) {
+    const my = r*ch + ch/2;
+    const a  = animForRow(r);
+    ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, my-8, 20, 16);
+    ctx.fillStyle = '#f0b429'; ctx.fillText(String(r), 3, my+4);
+    if (a) {
+      const lbl = a.name + (a.flip ? ' ⟺' : '');
+      const tw  = ctx.measureText(lbl).width + 10;
+      ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(22, my-8, tw, 16);
+      ctx.fillStyle = '#56d364'; ctx.fillText(lbl, 27, my+4);
+      ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(22+tw+3, my-8, ctx.measureText(`×${a.cols}`).width+8, 16);
+      ctx.fillStyle = '#79c0ff'; ctx.fillText(`×${a.cols}`, 26+tw+3, my+4);
+    }
+  }
+
+  // Selected border
+  if (selRow >= 0 && selRow < rows) {
+    ctx.strokeStyle = '#f0b429'; ctx.lineWidth = 2;
+    ctx.strokeRect(1, selRow*ch+1, cols*cw-2, ch-2);
+    ctx.lineWidth = 1;
+  }
+}
+
+// ── Mouse ─────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  if (!img) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const col = Math.floor(mx/fw()), row = Math.floor(my/fh());
+  const a   = animForRow(row);
+  document.getElementById('c-pos').textContent   = `x:${Math.floor(mx)} y:${Math.floor(my)}`;
+  document.getElementById('c-frame').textContent  = `col:${col} row:${row}`;
+  document.getElementById('c-anim').textContent   = a ? `→ ${a.name}` : '';
+  if (row !== hoverRow) { hoverRow = row; redraw(); }
+});
+canvas.addEventListener('mouseleave', () => {
+  hoverRow = -1; redraw();
+  document.getElementById('c-pos').textContent   = 'Hover the canvas to see coordinates';
+  document.getElementById('c-frame').textContent  = '';
+  document.getElementById('c-anim').textContent   = '';
+});
+canvas.addEventListener('click', e => {
+  if (!img) return;
+  const rect = canvas.getBoundingClientRect();
+  const row  = Math.floor((e.clientY - rect.top) / fh());
+  selRow = row;
+  document.getElementById('sel-row-indicator').style.display = 'block';
+  document.getElementById('form-row-hint').style.display     = 'none';
+  document.getElementById('sel-row-num').textContent = row;
+  document.getElementById('save-row-btn').disabled   = false;
+  const a = animForRow(row);
+  document.getElementById('anim-name').value   = a ? a.name  : '';
+  document.getElementById('anim-cols').value   = a ? a.cols  : numCols();
+  document.getElementById('anim-flip').checked = a ? a.flip  : false;
+  redraw();
+});
+
+// ── Animation management ──────────────────────────────────────────────────────
+function saveRow() {
+  if (selRow < 0) return;
+  const name = document.getElementById('anim-name').value.trim();
+  if (!name) { alert('Enter an animation name first.'); return; }
+  const cols = parseInt(document.getElementById('anim-cols').value) || numCols();
+  const flip = document.getElementById('anim-flip').checked;
+  animations = animations.filter(a => a.row !== selRow);
+  animations.push({ row: selRow, name, cols, flip });
+  animations.sort((a, b) => a.row - b.row);
+  renderAnimList();
+  redraw();
+}
+
+function removeAnim(row) {
+  animations = animations.filter(a => a.row !== row);
+  renderAnimList();
+  redraw();
+}
+
+function renderAnimList() {
+  const list = document.getElementById('anim-list');
+  document.getElementById('anim-count').textContent = animations.length ? `(${animations.length})` : '';
+  if (!animations.length) {
+    list.innerHTML = '<div class="hint">No animations defined yet</div>';
+    return;
+  }
+  list.innerHTML = animations.map(a => `
+    <div class="anim-row">
+      <div>
+        <div class="anim-row-name">row ${a.row}: ${a.name}</div>
+        <div class="anim-row-meta">${a.cols} frames${a.flip ? ' · flip for opposite' : ''}</div>
+      </div>
+      <button class="btn-red" onclick="removeAnim(${a.row})">✕</button>
+    </div>
+  `).join('');
+}
+
+// ── Save config ───────────────────────────────────────────────────────────────
+async function saveConfig() {
+  const id    = document.getElementById('spr-id').value.trim();
+  const cat   = document.getElementById('spr-cat').value;
+  const group = document.getElementById('spr-group').value;
+
+  if (!id) { alert('Enter a Sprite ID before saving.'); return; }
+  if (!currentSrcFile) { alert('Upload a PNG first so the source path is known.'); return; }
+
+  const entry = {
+    id,
+    category:    cat,
+    srcFile:     currentSrcFile,
+    atlasGroup:  group,
+    frameWidth:  fw(),
+    frameHeight: fh(),
+    animations:  animations.map(a => {
+      const o = { name: a.name, row: a.row, cols: a.cols };
+      if (a.flip) o.flipForOpposite = true;
+      return o;
+    }),
+  };
+
+  // Upsert in spriteDefs
+  const idx = spriteDefs.spritesheets.findIndex(s => s.id === id);
+  if (idx >= 0) spriteDefs.spritesheets[idx] = entry;
+  else          spriteDefs.spritesheets.push(entry);
+
+  if (SERVER === null) {
+    // file:// mode — copy to clipboard
+    navigator.clipboard.writeText(JSON.stringify(spriteDefs, null, 2));
+    alert('Saved to clipboard (no server). Paste into src/data/sprite-defs.json manually.');
+    return;
+  }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/defs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(spriteDefs),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      btn.textContent = '✓ Saved!';
+      btn.style.background = '#1a7f37';
+      renderLibrary();
+    } else {
+      btn.textContent = 'Save failed';
+    }
+  } catch (e) {
+    btn.textContent = `Error: ${e.message}`;
+  }
+  setTimeout(() => {
+    btn.disabled = false; btn.textContent = 'Save to sprite-defs.json';
+    btn.style.background = '';
+  }, 2000);
+}
+
+// ── Build atlas ───────────────────────────────────────────────────────────────
+async function buildAtlas() {
+  if (SERVER === null) {
+    alert('Build requires the server. Run: npm run sprites');
+    return;
+  }
+  const out  = document.getElementById('build-out');
+  const btn  = document.getElementById('build-btn');
+  out.className = 'visible'; out.innerHTML = '';
+  btn.disabled  = true; btn.textContent = 'Building…';
+
+  const log = (text, cls) => {
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+    span.textContent = text;
+    out.appendChild(span);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  log('Running node tools/pack-atlases.js…\n');
+  try {
+    const r    = await fetch('/api/build', { method: 'POST' });
+    const data = await r.json();
+    if (data.output) log(data.output);
+    if (data.ok) {
+      log('\n✓ Build complete!', 'ok');
+      document.getElementById('build-hint').style.display = '';
+    } else {
+      log('\n✗ Build failed.', 'err');
+    }
+  } catch (e) {
+    log(`\n✗ ${e.message}`, 'err');
+  }
+  btn.disabled = false; btn.textContent = 'Build Atlas (pack-atlases.js)';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+initServer();
+renderAnimList();
+</script>
+</body>
+</html>

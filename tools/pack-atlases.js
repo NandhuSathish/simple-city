@@ -291,23 +291,72 @@ async function packNpcs() {
   });
 }
 
-// ─── Animals ──────────────────────────────────────────────────────────────────
+// ─── Animals (sprite-defs driven) ────────────────────────────────────────────
+//
+// Reads src/data/sprite-defs.json.  For each spritesheet with atlasGroup="animals",
+// it slices the source PNG into individual animation frames and packs them into the
+// animals atlas.  Frame names: {id}_{animName}_{frameIndex}
+//
+// Source PNGs are looked up in public/assets/source/{srcFile} (set by sprite-server).
+// If sprite-defs has no animal entries, logs a warning and skips this atlas.
+
+const SPRITE_DEFS_PATH = join(ROOT, 'src', 'data', 'sprite-defs.json');
+const SPRITE_SOURCE    = join(ROOT, 'public', 'assets', 'source');
 
 async function packAnimals() {
-  const animalDir   = join(ASSET_SRC, 'Animals');
-  const animalFiles = [
-    ...readdirSync(join(animalDir, 'Chicken'))
-      .filter(f => extname(f).toLowerCase() === '.png' && !f.includes('Rooster'))
-      .map(f => join(animalDir, 'Chicken', f)),
-    ...readdirSync(join(animalDir, 'Cow'))
-      .filter(f => extname(f).toLowerCase() === '.png')
-      .map(f => join(animalDir, 'Cow', f)),
-    ...readdirSync(join(animalDir, 'Pig'))
-      .filter(f => extname(f).toLowerCase() === '.png')
-      .map(f => join(animalDir, 'Pig', f)),
-  ];
-  const images = animalFiles.map(fp => ({ path: basename(fp), contents: readFileSync(fp) }));
-  console.log(`\nPacking animals atlas — ${images.length} sprites…`);
+  let defs = { spritesheets: [] };
+  try {
+    defs = JSON.parse(readFileSync(SPRITE_DEFS_PATH, 'utf-8'));
+  } catch {
+    console.log('\nNo sprite-defs.json found — skipping animals atlas.');
+    return;
+  }
+
+  const sheets = (defs.spritesheets || []).filter(s => s.atlasGroup === 'animals');
+  if (!sheets.length) {
+    console.log('\nsprite-defs.json has no animal entries — skipping animals atlas.');
+    console.log('  Use `npm run sprites` to open the Sprite Configurator and upload your animal PNGs.');
+    return;
+  }
+
+  console.log(`\nPacking animals atlas from sprite-defs (${sheets.length} spritesheets)…`);
+  const images = [];
+
+  for (const sheet of sheets) {
+    const srcPath = join(SPRITE_SOURCE, sheet.srcFile);
+    if (!existsSync(srcPath)) {
+      console.warn(`  SKIP ${sheet.id}: source not found at ${srcPath}`);
+      continue;
+    }
+
+    const { frameWidth: fw, frameHeight: fh, animations = [] } = sheet;
+    const sheetImg = await Jimp.read(srcPath);
+    console.log(`  ${sheet.id}  (${sheetImg.width}×${sheetImg.height}, frame ${fw}×${fh})`);
+
+    for (const anim of animations) {
+      const { name, row, cols } = anim;
+      for (let c = 0; c < cols; c++) {
+        const frame = new Jimp({ width: fw, height: fh, color: 0x00000000 });
+        for (let py = 0; py < fh; py++) {
+          for (let px = 0; px < fw; px++) {
+            frame.setPixelColor(
+              sheetImg.getPixelColor(c * fw + px, row * fh + py),
+              px, py,
+            );
+          }
+        }
+        const buf = await frame.getBuffer('image/png');
+        images.push({ path: `${sheet.id}_${name}_${c}.png`, contents: buf });
+      }
+    }
+  }
+
+  if (!images.length) {
+    console.log('  No frames extracted — check that source PNGs exist and animations are defined.');
+    return;
+  }
+
+  console.log(`  Packing ${images.length} frames…`);
   await packAtlas(images, {
     textureName:         'animals',
     width:               4096,

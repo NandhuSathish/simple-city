@@ -17,15 +17,17 @@ export class TimeSystem {
   private readonly scene:  Scene;
   private accumulator =    0;
   private _gameHour =      6;    // start at dawn
-  private _minuteOfDay =   0;    // 0-23 within the current day
+  private _minuteOfDay =   6;    // matches _gameHour at start
+  private _day =           1;
 
   constructor(scene: Scene) {
     this.scene = scene;
   }
 
-  get gameHour(): number { return this._gameHour; }
+  get gameHour(): number  { return this._gameHour; }
+  get gameDay():  number  { return this._day; }
 
-  /** 0-1 progress through the current day (useful for smooth day/night lerp). */
+  /** 0-1 progress through the current day. */
   get dayProgress(): number { return this._minuteOfDay / HOURS_PER_DAY; }
 
   update(delta: number): void {
@@ -37,17 +39,14 @@ export class TimeSystem {
   }
 
   private tick(): void {
-    this.scene.events.emit('time:tick');
-
     this._minuteOfDay = (this._minuteOfDay + 1) % HOURS_PER_DAY;
-    this._gameHour    = this._minuteOfDay;
+    if (this._minuteOfDay === 0) this._day++;
+    this._gameHour = this._minuteOfDay;
 
-    if (this._gameHour === HOUR_DAWN) {
-      this.scene.events.emit('time:dawn');
-    } else if (this._gameHour === HOUR_DAY) {
-      this.scene.events.emit('time:day');
-    } else if (this._gameHour === HOUR_NIGHT) {
-      this.scene.events.emit('time:night');
-    }
+    this.scene.events.emit('time:tick', { hour: this._gameHour, day: this._day });
+
+    if (this._gameHour === HOUR_DAWN)  this.scene.events.emit('time:dawn');
+    else if (this._gameHour === HOUR_DAY)   this.scene.events.emit('time:day');
+    else if (this._gameHour === HOUR_NIGHT) this.scene.events.emit('time:night');
   }
 }

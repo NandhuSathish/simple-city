@@ -3,9 +3,11 @@ import type { Villager } from '../entities/Villager';
 import type { VillagerSystem } from '../systems/VillagerSystem';
 import type { PlacedBuildingData } from '../types';
 
-const PANEL_W    = 200;
-const PANEL_H    = 220;
+const PANEL_W     = 200;
+const PANEL_H     = 200;
 const PANEL_DEPTH = 210;
+const PANEL_X_OFF = 4;   // from right edge
+const PANEL_Y     = 165; // sits below BuildingInfoPanel (~120px tall at y=40)
 const PAD         = 8;
 const ROW_H       = 22;
 
@@ -15,6 +17,7 @@ export class VillagerAssignPanel {
   private container!:                GameObjects.Container;
   private bg!:                       GameObjects.Rectangle;
   private titleText!:                GameObjects.Text;
+  private emptyText!:                GameObjects.Text;
   private rowTexts:                  GameObjects.Text[] = [];
   private currentBuilding:           PlacedBuildingData | null = null;
 
@@ -43,12 +46,13 @@ export class VillagerAssignPanel {
   // ─── private ──────────────────────────────────────────────────────────────
 
   private build(): void {
-    const x = this.scene.scale.width - PANEL_W - 4;
-    const y = 40 + 10; // sits near the info panel area
+    const x = this.scene.scale.width - PANEL_W - PANEL_X_OFF;
+    const y = PANEL_Y;
 
     this.bg = this.scene.add
-      .rectangle(0, 0, PANEL_W, PANEL_H, 0x1a1a3a, 0.95)
-      .setOrigin(0, 0);
+      .rectangle(0, 0, PANEL_W, PANEL_H, 0x0d1b2a, 0.96)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, 0x334466);
 
     this.titleText = this.scene.add
       .text(PAD, PAD, 'Assign Villager', {
@@ -58,10 +62,20 @@ export class VillagerAssignPanel {
       })
       .setOrigin(0, 0);
 
+    // Shown when there are no unassigned villagers
+    this.emptyText = this.scene.add
+      .text(PAD, PAD + 28, 'No idle villagers.\nPlace a Wood House first.', {
+        fontSize:   '10px',
+        fontFamily: 'monospace',
+        color:      '#668899',
+        lineSpacing: 4,
+      })
+      .setOrigin(0, 0);
+
     // Pre-create row slots
     for (let i = 0; i < 7; i++) {
       const t = this.scene.add
-        .text(PAD, PAD + 20 + i * ROW_H, '', {
+        .text(PAD, PAD + 24 + i * ROW_H, '', {
           fontSize:   '10px',
           fontFamily: 'monospace',
           color:      '#aaccff',
@@ -72,7 +86,7 @@ export class VillagerAssignPanel {
     }
 
     this.container = this.scene.add
-      .container(x, y, [this.bg, this.titleText, ...this.rowTexts])
+      .container(x, y, [this.bg, this.titleText, this.emptyText, ...this.rowTexts])
       .setDepth(PANEL_DEPTH)
       .setVisible(false);
   }
@@ -85,18 +99,20 @@ export class VillagerAssignPanel {
     const unassigned = this.villagerSystem.getUnassignedVillagers();
 
     this.titleText.setText(
-      `${building.def.label}\nAssign worker (${maxSlots} slot${maxSlots > 1 ? 's' : ''})`,
+      `${building.def.label}  [${maxSlots} slot${maxSlots > 1 ? 's' : ''}]`,
     );
+
+    const hasVillagers = unassigned.length > 0;
+    this.emptyText.setVisible(!hasVillagers);
 
     for (let i = 0; i < this.rowTexts.length; i++) {
       const t = this.rowTexts[i];
       const v: Villager | undefined = unassigned[i];
 
       if (v) {
-        t.setText(`> Villager #${v.id} [${v.currentState}]`);
+        t.setText(`> #${v.id}  ${v.npcKey}  [${v.currentState}]`);
         t.setColor('#aaddff');
 
-        // Remove old listeners, add fresh one
         t.removeAllListeners('pointerdown');
         const captured = v;
         t.on('pointerdown', () => {

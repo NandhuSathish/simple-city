@@ -4,6 +4,49 @@ All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---
 
+## [Phase 5 — Bugfixes, Clock, Sprite Configurator] 2026-04-23
+
+### Fixed
+
+- **`src/scenes/WorldScene.ts`** — Day/night overlay was permanently invisible: `Rectangle` was constructed with `fillAlpha=0`, making every `alpha` tween a no-op (`0 × alpha = 0`). Fixed by passing `fillAlpha=1` and starting the game-object alpha at 0 via `setAlpha(0)`. Night darkening (alpha→0.6), dawn (alpha→0.35), and day (alpha→0) now work correctly.
+
+- **`src/systems/TimeSystem.ts`** — `_minuteOfDay` initialised at 0 while `_gameHour` was 6, causing the hour to reset to 1 on the first tick. Fixed by initialising both to 6. Added a `_day` counter that increments on midnight wrap. `time:tick` now carries `{ hour, day }` payload (backwards-compatible — existing listeners that take no arguments are unaffected).
+
+- **`src/systems/BuildSystem.ts`** — After placing a building, `activeDef` was never cleared. Any click on a placed building while still in placement mode was silently swallowed by the `if (this.activeDef) return` guard, so the building could never be selected — and therefore the assign panel never appeared. Fixed: `this.cancel()` is now called immediately after a successful placement so the player returns to selection mode automatically.
+
+- **`src/ui/VillagerAssignPanel.ts`** — Panel was positioned at y=50, directly overlapping `BuildingInfoPanel` (y=40). Moved to `y=165` (below the info panel). Added **"No idle villagers — Place a Wood House first."** empty-state message so the panel is never silently blank.
+
+### Added
+
+- **`src/ui/ClockWidget.ts`** — Game clock displayed in the top-right corner of the resource bar. Shows `DAY/DWN/NGT` phase label, current `HH:00` hour, `Day N` count, and a thin progress bar spanning the width of the widget that fills across the 24-hour cycle. Bar colour shifts to blue at night and orange at dawn.
+
+- **`src/scenes/UIScene.ts`** — Subscribes to `time:tick` to keep `ClockWidget` updated every game-minute.
+
+- **`tools/sprite-server.js`** *(new)* — Minimal Node.js HTTP server (no extra npm dependencies). Start with `npm run sprites`, open http://localhost:3456. Routes: `GET /` serves the viewer; `POST /api/upload` saves an uploaded PNG to `public/assets/source/{group}/`; `POST /api/defs` writes `src/data/sprite-defs.json`; `POST /api/build` runs `pack-atlases.js` and streams the output.
+
+- **`tools/sprite-viewer.html`** *(rewritten)* — Fully server-backed sprite sheet configurator. In server mode (http://localhost:3456): drag-drop / file-input uploads PNG automatically to the project; configure grid with frame-size OR col/row count (bidirectional sync); click rows to label animations (name, col count, flip-for-opposite-direction flag); **Save to sprite-defs.json** posts config immediately; **Build Atlas** runs the packer and shows live output. Sprite Library sidebar shows all saved sprites with edit/delete. Falls back to clipboard-copy mode if opened as a `file://` URL.
+
+- **`src/data/sprite-defs.json`** *(new, canonical)* — Master animation config consumed by both `pack-atlases.js` and the game at runtime. Format: `{ spritesheets: [ { id, category, srcFile, atlasGroup, frameWidth, frameHeight, animations: [{name,row,cols,flipForOpposite?}] } ] }`. Currently contains `chicken_01` (32×32, 7 animations) configured by the user.
+
+### Changed
+
+- **`src/systems/TimeSystem.ts`** — Added `gameDay` getter. `time:tick` event now carries `{ hour: number; day: number }` payload.
+
+- **`tools/pack-atlases.js`** — `packAnimals()` completely replaced: now reads `src/data/sprite-defs.json` and slices each spritesheet by its configured `frameWidth × frameHeight` and animation row definitions. Frame names follow `{id}_{animName}_{frameIndex}`. Skips gracefully if no animal entries are configured yet, with a message directing the user to the Sprite Configurator.
+
+- **`src/scenes/PreloadScene.ts`** — `registerAnimalAnims()` rewritten to import and iterate `sprite-defs.json` at build time, registering one Phaser animation per `{id}_{animName}` key. Removed hardcoded `ANIMAL_ANIMS` array.
+
+- **`src/entities/Animal.ts`** — Rewritten. Picks a random sprite-sheet variant from `sprite-defs.json` for the requested animal category. Scale computed as `TILE_SIZE × 1.5 / frameWidth` (2 tiles wide). `updateAnim()` plays `walk` with `flipX` when `flipForOpposite: true` and the animal moves left; `idle` when stationary. Renders an invisible placeholder if no config exists yet (no crash).
+
+- **`package.json`** — Added `"sprites": "node tools/sprite-server.js"` script.
+
+### Verification
+
+- `tsc --noEmit` → 0 errors
+- `npm run build` → success, ~1.39 MB bundle
+
+---
+
 ## [Phase 5 — Life: Villagers, Animals, Day/Night, Weather] 2026-04-23
 
 Goal: The world feels alive — villagers commute between home and work, animals wander in their pens, the sky cycles through dawn/day/night, and rain occasionally falls.
