@@ -2,21 +2,13 @@
  * tools/gen-starter-map.ts
  * Generates public/assets/maps/world.tmj — a 64×64 Tiled map with all Phase 1 layers.
  *
- * WHY this script exists: Tiled is a GUI tool and cannot be scripted from CI/Node.
- * This produces a valid baseline map the user can later re-author visually in Tiled.
- * See knowledge.md §Tiled for notes on opening and editing this file.
- *
- * Tileset reference (terrain_base.png, 256×592, 16-col):
+ * Tileset reference (terrain_base.png, 256×608, 16-col):
  *   GIDs   1–160  Grass_Tiles_1      (rows  0– 9)
  *   GIDs 161–240  Cobble_Road_1      (rows 10–14, cols 0–2 occupied)
  *   GIDs 241–368  FarmLand_Tile      (rows 15–22, cols 0–6 occupied)
  *   GIDs 369–496  Pavement_Tiles     (rows 23–30, cols 0–8 occupied)
  *   GIDs 497–592  Wooden_Deck_Tiles  (rows 31–36, cols 0–4 occupied)
- *
- * Ground fill uses GID 1 (top-left tile of Grass_Tiles_1). If that looks wrong
- * after running, open terrain_base.png to find the plain-middle grass GID and
- * update GRASS_FILL_GID below. Typical plain-middle positions in this pack vary
- * per Grass_Tiles_N variant — inspect the sheet and update.
+ *   GID  593      Water_Middle       (row 37, col 0)
  *
  * Run: node --experimental-strip-types tools/gen-starter-map.ts
  */
@@ -32,18 +24,24 @@ const MAP_W = 64;
 const MAP_H = 64;
 const TILE_SIZE = 16;
 
-// Grass: GIDs 1–160 (Grass_Tiles_1, 16 cols × 10 rows). GID 81 = plain-middle.
 const GRASS_FILL_GID  = 81;
-// FarmLand: GIDs 241–368 (FarmLand_Tile, 16 cols). GID 241 = first farmland tile.
 const FARM_FILL_GID   = 241;
-// FarmLand zone: south-centre of map — rows 44–54, cols 8–55 (48 wide × 11 tall).
-const FARM_ROW_START  = 44;
-const FARM_ROW_END    = 55;  // inclusive
-const FARM_COL_START  = 8;
-const FARM_COL_END    = 55;  // inclusive
+const WATER_FILL_GID  = 593;
 
-const SPAWN_X = (MAP_W / 2) * TILE_SIZE;  // 512
-const SPAWN_Y = (MAP_H / 2) * TILE_SIZE;  // 512
+// FarmLand zone: south-centre
+const FARM_ROW_START  = 44;
+const FARM_ROW_END    = 55;
+const FARM_COL_START  = 8;
+const FARM_COL_END    = 55;
+
+// Water zone: a lake/inlet in the top-right corner (rows 5–18, cols 52–63)
+const WATER_ROW_START = 5;
+const WATER_ROW_END   = 18;
+const WATER_COL_START = 52;
+const WATER_COL_END   = 63;
+
+const SPAWN_X = (MAP_W / 2) * TILE_SIZE;
+const SPAWN_Y = (MAP_H / 2) * TILE_SIZE;
 
 function fillLayer(gid: number): number[] {
   return new Array<number>(MAP_W * MAP_H).fill(gid);
@@ -53,7 +51,6 @@ function emptyLayer(): number[] {
   return new Array<number>(MAP_W * MAP_H).fill(0);
 }
 
-/** Build the ground layer: grass everywhere, with a farmland patch in the south-centre. */
 function groundLayer(): number[] {
   const data = fillLayer(GRASS_FILL_GID);
   const variants = [GRASS_FILL_GID, GRASS_FILL_GID, GRASS_FILL_GID, GRASS_FILL_GID + 1, GRASS_FILL_GID - 1];
@@ -64,8 +61,9 @@ function groundLayer(): number[] {
     for (let c = 0; c < MAP_W; c++) {
       const idx = r * MAP_W + c;
       if (r >= FARM_ROW_START && r <= FARM_ROW_END && c >= FARM_COL_START && c <= FARM_COL_END) {
-        // Farmland patch — FarmLand_Tile GIDs 241+ for slight variety
         data[idx] = FARM_FILL_GID + (rng() < 0.15 ? Math.floor(rng() * 3) : 0);
+      } else if (r >= WATER_ROW_START && r <= WATER_ROW_END && c >= WATER_COL_START && c <= WATER_COL_END) {
+        data[idx] = WATER_FILL_GID;
       } else {
         if (rng() < 0.08) data[idx] = variants[Math.floor(rng() * variants.length)];
       }
@@ -135,15 +133,15 @@ const map = {
   tileheight: TILE_SIZE,
   tilesets: [
     {
-      columns: 16,            // terrain_base.png is 256px wide → 16 tiles/row
+      columns: 16,
       firstgid: 1,
       image: '../tilesets/terrain_base.png',
-      imageheight: 592,
+      imageheight: 608,
       imagewidth: 256,
       margin: 0,
       name: 'terrain_base',
       spacing: 0,
-      tilecount: 592,         // 16 cols × 37 rows
+      tilecount: 608,
       tileheight: TILE_SIZE,
       tilewidth: TILE_SIZE,
     },
@@ -161,8 +159,4 @@ const outPath = join(outDir, 'world.tmj');
 mkdirSync(outDir, { recursive: true });
 writeFileSync(outPath, JSON.stringify(map, null, 2), 'utf-8');
 console.log(`world.tmj written — ${MAP_W}×${MAP_H} tiles`);
-console.log('Layers: ground, ground_detail, decoration_below, buildings_baked, decoration_above, collision, spawns');
-console.log(`Player spawn: (${SPAWN_X}, ${SPAWN_Y}) world px`);
-console.log('');
-console.log('NOTE: Open in Tiled to re-author with visual precision.');
-console.log('      Update GRASS_FILL_GID in this script if the grass tile looks wrong.');
+console.log(`Water lake: rows ${WATER_ROW_START}–${WATER_ROW_END}, cols ${WATER_COL_START}–${WATER_COL_END}`);

@@ -442,3 +442,90 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 - `this.scene.input.on('pointermove', cb, this)` — passes `Phaser.Input.Pointer`, not a plain `{x,y}`. Use `pointer.x/y` for screen coords, then `cam.getWorldPoint(pointer.x, pointer.y)` to get world coords.
 - Right-click fires `pointerdown` with `pointer.button === 2`. Phaser 4 does NOT suppress the browser context menu by default inside the canvas — for Phase 3, add `this.input.mouse?.disableContextMenu()` if context menus appear.
 - `keyboard.on('keydown-ESC', cb, this)` — fires on every keydown, not just JustDown. Safe here because cancel is idempotent.
+
+---
+
+## Phase 6 — Districts & Progression (2026-04-23)
+
+### UnlockSystem tier conditions
+- `tier1_starter` is pre-unlocked on init (no condition needed).
+- Conditions checked each `time:tick` and `building:placed`:
+  - `tier2_farming`: 1+ wood houses placed
+  - `tier3_residential`: 3+ wood houses placed
+  - `tier4_marketplace`: Gold ≥ 100 (cumulative earned, not current)
+  - `tier5_waterfront`: market stall placed (`triggersWaterfront: true` on `market_stall` def)
+  - `tier6_quarry`: Stone ≥ 50 (cumulative gathered)
+  - `tier7_walls`: 10+ villagers alive
+  - `tier8_park`: happiness ≥ 0.5 (decoration_count / house_count)
+  - `tier9_magic`: Gold ≥ 200 (cumulative)
+  - `tier10_expansion`: tier9_magic unlocked
+- Once unlocked, a tier stays unlocked forever (Set<string> — never removed).
+- On unlock: emits `unlock:gained` on `scene.events`; UIScene shows toast and calls `buildMenu.onUnlockChanged()`.
+
+### Happiness multiplier
+- Formula: `happiness = decoration_count / max(1, house_count)`
+- Propagated to EconomySystem as `setHappinessMultiplier(1 + happiness × 0.3)`.
+- Effective range: ×1.0 (0 decorations) → ×1.3 (1 decoration per house).
+- `decoration_count` = count of placed buildings with `isDecoration: true`.
+- `house_count` = count of placed buildings with `isHouse: true`.
+- Recalculated every `time:tick`.
+
+### SaveSystem — localStorage shape
+- Key: `cf_city_save_v1`
+- Version field: `version: 1` — used for future migration guards.
+- Resources serialized as plain numbers (all 5: Wood/Stone/Food/Gold/Mana).
+- Buildings: `{ key, col, row, id }` array — `silentPlace()` on load re-creates sprites and economy entries.
+- Villagers: `{ col, row, npcKey }` — re-spawned at saved tile position on load.
+- Unlocks: `string[]` of tier keys (converted from Set → array for JSON, back on load).
+- FogRevealed: `Array<[number, number]>` of `[regionX, regionY]` region coordinates.
+- Stats: `{ goldEarned, stoneGathered }` — cumulative totals used by unlock conditions.
+- Camera: `{ x, y, zoom }` — restored on load so player returns to same view.
+
+### FogOfWar region mechanics
+- Map divided into 10×10-tile regions. Region `(rx, ry)` covers tiles `(rx*10 … rx*10+9, ry*10 … ry*10+9)`.
+- Center 3×3 regions revealed by default (for a 64×64 map: regions 2-4 in both axes).
+- Dark overlay: one `Rectangle` per region. `tryRevealRegion(rx, ry)` charges 50 Gold and tweens alpha to 0.
+- `restoreRevealed(pairs)` re-applies revealed state from save without charging Gold.
+- Expansion tab in BuildMenu: clicking a fogged region triggers `fog:reveal:attempt` event → FogOfWar handles it.
+- `getRevealedRegions()` returns `[rx, ry]` pairs for save.
+
+### Water terrain — GID 593
+- `terrain_base.png` was extended to 608 px tall (was 592) to add `Water_Middle.png` at Y=592.
+- GID 593 = water fill tile (first tile of the new row).
+- `gidToTerrain(593)` returns `'water'` in `grid.ts`.
+- Water patch: rows 5–18, cols 52–63 of the generated map.
+- `hasWaterAdjacent(col, row, w, h)` checks the 1-tile border around a footprint for `'water'` terrain — used by `isValidPlacement()` for `requiresWaterAdj` buildings.
+
+### BuildMenu dynamic tab filtering
+- `activeTabs()` returns only tabs with ≥1 unlocked building — no empty tabs shown.
+- `visibleDefs()` filters building catalog to current tab AND `isUnlocked(b.unlockKey ?? 'tier1_starter')`.
+- `onUnlockChanged(fn)` replaces the isUnlocked predicate and calls `rebuildTabs()` + `buildButtons()`.
+- Expansion tab is special-cased: renders a hint text instead of building buttons.
+- Decor sprites (Fountain, Benches, Flowers, Boat, Minecrats) live in the `'decor'` atlas, not `'buildings'`. `buildButtons()` checks the sprite frame name to pick the right atlas.
+
+### Church_Blue.png — too wide for a placed building
+- `Church_Blue.png` is **448×144 px** (28 tiles wide). Using it as a Magic District placed building would create an enormous footprint that dominates the map.
+- **Decision:** Magic Academy uses `House_5_Stone_Base_Blue` (96×128) with `sprite.setTint(0x9966ff)` for the purple magic tint.
+- `isMagic: true` in BuildingDef → BuildMenu applies tint; BuildSystem's `silentPlace()` also applies tint on load.
+
+### Fisherman_Fin — 9 columns, not 6
+- `Fisherman_Fin.png` is **576×832 px** — 9 columns of 64px = 576px wide.
+- All other NPC sheets are 6 columns (384px wide).
+- **Fix:** `NpcDef` interface has optional `cols?: number`. `pack-atlases.js` and `PreloadScene.ts` use `npc.cols ?? NPC_COLS` for frame range calculation.
+- Frame naming: same `{prefix}_{frameIndex}` scheme, but frameIndex = rowIndex × 9 + colIndex.
+
+### Waterfront unlock trigger — market stall, not bridge
+- Original plan: Waterfront unlocked when first bridge is placed. Bridge PNGs are tile assets (individual tiles), not single placed-building sprites → can't be used as `BuildingDef` entries.
+- **Decision:** `market_stall` has `triggersWaterfront: true`. When this building is placed, `UnlockSystem` sets `marketStallPlaced = true`, which satisfies the `tier5_waterfront` condition on the next tick.
+
+### BuildSystem.silentPlace()
+- Restores a building without deducting cost or emitting `building:placed`.
+- Still marks grid occupancy, creates the sprite at correct depth, and calls `economy.addBuilding()`.
+- Applies `setTint(0x9966ff)` if `def.isMagic`.
+- Used exclusively by `SaveSystem.load()` to restore the building map from saved state.
+
+### Mana resource
+- Added as 5th resource type alongside Wood/Stone/Food/Gold.
+- ResourceBar hides Mana icon+counter until `resources.Mana > 0` (set visible on first non-zero update).
+- No building currently produces Mana — placeholder for future magic buildings.
+- EconomySystem `Resources` interface includes `Mana: number`.

@@ -20,6 +20,7 @@ export function initTerrainFromGids(gids: number[][]): void {
 function gidToTerrain(gid: number): TerrainType {
   if (gid <= 0 || (gid >= 1 && gid <= 160))   return 'grass';
   if (gid >= 241 && gid <= 368)                return 'farmland';
+  if (gid === 593)                             return 'water';
   return 'path';
 }
 
@@ -41,6 +42,19 @@ export function isTerrainAllowed(
     }
   }
   return true;
+}
+
+/** Returns true if any tile in the 1-tile border surrounding the footprint is water. */
+export function hasWaterAdjacent(col: number, row: number, w: number, h: number): boolean {
+  for (let c = col - 1; c <= col + w; c++) {
+    if (getTerrainAt(c, row - 1)     === 'water') return true;
+    if (getTerrainAt(c, row + h)     === 'water') return true;
+  }
+  for (let r = row; r < row + h; r++) {
+    if (getTerrainAt(col - 1, r)     === 'water') return true;
+    if (getTerrainAt(col + w,  r)    === 'water') return true;
+  }
+  return false;
 }
 
 export function worldToTile(x: number, y: number): { col: number; row: number } {

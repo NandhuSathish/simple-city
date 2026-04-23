@@ -1,7 +1,8 @@
 import type { BuildingDef } from '../types';
 
 export const buildingCatalog: BuildingDef[] = [
-  // ── Housing ──────────────────────────────────────────────────────────────
+
+  // ─── Tier 1 — Starter Village (always unlocked) ───────────────────────────
   {
     key:            'wood_house_blue',
     label:          'Wood House',
@@ -9,13 +10,38 @@ export const buildingCatalog: BuildingDef[] = [
     spriteFrame:    'House_1_Wood_Base_Blue',
     footprint:      { w: 2, h: 2 },
     terrainAllowed: ['grass'],
+    unlockKey:      'tier1_starter',
     cost:           { Wood: 10, Stone: 5 },
     produces:       {},
     consumes:       { Food: 0.05 },
     isHouse:        true,
   },
+  {
+    key:            'windmill',
+    label:          'Windmill',
+    tab:            'Production',
+    spriteFrame:    'Windmill',
+    footprint:      { w: 2, h: 3 },
+    terrainAllowed: ['grass'],
+    unlockKey:      'tier1_starter',
+    cost:           { Wood: 20, Stone: 10 },
+    produces:       { Food: 0.2 },
+    consumes:       {},
+  },
+  {
+    key:            'well',
+    label:          'Well',
+    tab:            'Resource',
+    spriteFrame:    'Well',
+    footprint:      { w: 1, h: 1 },
+    terrainAllowed: ['grass', 'path'],
+    unlockKey:      'tier1_starter',
+    cost:           { Stone: 15 },
+    produces:       {},
+    consumes:       {},
+  },
 
-  // ── Production ───────────────────────────────────────────────────────────
+  // ─── Tier 2 — Farming (unlock: 1st wood house) ───────────────────────────
   {
     key:             'lumberjack_hut',
     label:           'Lumberjack Hut',
@@ -23,6 +49,7 @@ export const buildingCatalog: BuildingDef[] = [
     spriteFrame:     'Shed_Base_Blue',
     footprint:       { w: 2, h: 2 },
     terrainAllowed:  ['grass'],
+    unlockKey:       'tier2_farming',
     cost:            { Wood: 30, Stone: 10 },
     produces:        { Wood: 0.3 },
     consumes:        {},
@@ -38,6 +65,7 @@ export const buildingCatalog: BuildingDef[] = [
     spriteFrame:     'Silo',
     footprint:       { w: 2, h: 3 },
     terrainAllowed:  ['grass'],
+    unlockKey:       'tier2_farming',
     cost:            { Wood: 20, Stone: 30 },
     produces:        { Stone: 0.25 },
     consumes:        {},
@@ -53,6 +81,7 @@ export const buildingCatalog: BuildingDef[] = [
     spriteFrame:     'Barn_Base_Blue',
     footprint:       { w: 3, h: 3 },
     terrainAllowed:  ['farmland'],
+    unlockKey:       'tier2_farming',
     cost:            { Wood: 25, Stone: 10 },
     produces:        { Food: 0.4 },
     consumes:        {},
@@ -61,38 +90,13 @@ export const buildingCatalog: BuildingDef[] = [
     isBarn:          true,
   },
   {
-    key:            'windmill',
-    label:          'Windmill',
-    tab:            'Production',
-    spriteFrame:    'Windmill',
-    footprint:      { w: 2, h: 3 },
-    terrainAllowed: ['grass'],
-    cost:           { Wood: 20, Stone: 10 },
-    produces:       { Food: 0.2 },
-    consumes:       {},
-  },
-
-  // ── Resource ─────────────────────────────────────────────────────────────
-  {
-    key:            'well',
-    label:          'Well',
-    tab:            'Resource',
-    spriteFrame:    'Well',
-    footprint:      { w: 1, h: 1 },
-    terrainAllowed: ['grass', 'path'],
-    cost:           { Stone: 15 },
-    produces:       {},
-    consumes:       {},
-  },
-
-  // ── Animals ──────────────────────────────────────────────────────────────
-  {
     key:            'coop',
     label:          'Chicken Coop',
     tab:            'Production',
     spriteFrame:    'Coop_Base_Blue',
     footprint:      { w: 2, h: 2 },
     terrainAllowed: ['grass'],
+    unlockKey:      'tier2_farming',
     cost:           { Wood: 20, Stone: 5 },
     produces:       { Food: 0.15 },
     consumes:       {},
@@ -100,4 +104,174 @@ export const buildingCatalog: BuildingDef[] = [
     workerSprite:   'farmer_buba',
     isCoop:         true,
   },
+
+  // ─── Tier 3 — Residential (unlock: 3 wood houses) ────────────────────────
+  {
+    key:            'stone_house',
+    label:          'Stone House',
+    tab:            'Housing',
+    spriteFrame:    'House_1_Stone_Base_Blue',
+    footprint:      { w: 2, h: 2 },
+    terrainAllowed: ['grass'],
+    unlockKey:      'tier3_residential',
+    cost:           { Wood: 5, Stone: 20 },
+    produces:       {},
+    consumes:       { Food: 0.06 },
+    isHouse:        true,
+  },
+  {
+    key:            'limestone_house',
+    label:          'Limestone House',
+    tab:            'Housing',
+    spriteFrame:    'House_1_Limestone_Base_Blue',
+    footprint:      { w: 2, h: 2 },
+    terrainAllowed: ['grass'],
+    unlockKey:      'tier3_residential',
+    cost:           { Wood: 8, Stone: 15 },
+    produces:       {},
+    consumes:       { Food: 0.06 },
+    isHouse:        true,
+  },
+
+  // ─── Tier 4 — Marketplace (unlock: 100 Gold earned) ─────────────────────
+  {
+    key:                 'market_stall',
+    label:               'Market Stall',
+    tab:                 'Marketplace',
+    spriteFrame:         'Market_Stalls',
+    footprint:           { w: 2, h: 2 },
+    terrainAllowed:      ['grass', 'path'],
+    unlockKey:           'tier4_marketplace',
+    cost:                { Wood: 30, Gold: 20 },
+    produces:            { Gold: 0.15 },
+    consumes:            {},
+    workerSlots:         2,
+    workerSprite:        'bartender_katy',
+    triggersWaterfront:  true,
+  },
+  {
+    key:            'fountain',
+    label:          'Fountain',
+    tab:            'Decoration',
+    spriteFrame:    'Fountain',
+    footprint:      { w: 1, h: 1 },
+    terrainAllowed: ['grass', 'path'],
+    unlockKey:      'tier4_marketplace',
+    cost:           { Stone: 25 },
+    produces:       {},
+    consumes:       {},
+    isDecoration:   true,
+  },
+
+  // ─── Tier 5 — Waterfront (unlock: place first Market Stall) ─────────────
+  {
+    key:               'fisherman_house',
+    label:             'Fisherman House',
+    tab:               'Waterfront',
+    spriteFrame:       'Fisherman_House_Base_Blue',
+    footprint:         { w: 3, h: 2 },
+    terrainAllowed:    ['grass'],
+    unlockKey:         'tier5_waterfront',
+    cost:              { Wood: 35, Stone: 15 },
+    produces:          { Food: 0.35 },
+    consumes:          {},
+    workerSlots:       2,
+    workerSprite:      'fisherman_fin',
+    requiresWaterAdj:  true,
+  },
+  {
+    key:            'boat_decor',
+    label:          'Boat',
+    tab:            'Waterfront',
+    spriteFrame:    'Boat',
+    footprint:      { w: 1, h: 1 },
+    terrainAllowed: ['grass', 'path'],
+    unlockKey:      'tier5_waterfront',
+    cost:           { Wood: 20 },
+    produces:       {},
+    consumes:       {},
+    isDecoration:   true,
+  },
+
+  // ─── Tier 6 — Quarry District (unlock: 50 Stone gathered) ────────────────
+  {
+    key:             'mining_post',
+    label:           'Mining Post',
+    tab:             'Production',
+    spriteFrame:     'Blacksmith_House_Blue',
+    footprint:       { w: 3, h: 2 },
+    terrainAllowed:  ['grass'],
+    unlockKey:       'tier6_quarry',
+    cost:            { Wood: 40, Stone: 30 },
+    produces:        { Stone: 0.4 },
+    consumes:        {},
+    workerSlots:     4,
+    productionRadius: 12,
+    requiresOre:     true,
+    workerSprite:    'miner_mike',
+  },
+
+  // ─── Tier 7 — Wall & Gate (unlock: 10 villagers) ─────────────────────────
+  {
+    key:            'wall_segment',
+    label:          'Wall Segment',
+    tab:            'Defense',
+    spriteFrame:    'Well',
+    footprint:      { w: 1, h: 1 },
+    terrainAllowed: ['grass', 'path'],
+    unlockKey:      'tier7_walls',
+    cost:           { Stone: 10 },
+    produces:       {},
+    consumes:       {},
+  },
+
+  // ─── Tier 8 — Decoration Park (unlock: happiness ≥ 0.5) ─────────────────
+  {
+    key:            'park_bench',
+    label:          'Park Bench',
+    tab:            'Decoration',
+    spriteFrame:    'Benches',
+    footprint:      { w: 1, h: 1 },
+    terrainAllowed: ['grass', 'path'],
+    unlockKey:      'tier8_park',
+    cost:           { Wood: 10 },
+    produces:       {},
+    consumes:       {},
+    isDecoration:   true,
+  },
+  {
+    key:            'flower_garden',
+    label:          'Flower Garden',
+    tab:            'Decoration',
+    spriteFrame:    'Flowers',
+    footprint:      { w: 2, h: 2 },
+    terrainAllowed: ['grass'],
+    unlockKey:      'tier8_park',
+    cost:           { Wood: 5, Gold: 10 },
+    produces:       {},
+    consumes:       {},
+    isDecoration:   true,
+  },
+
+  // ─── Tier 9 — Magic District (unlock: 200 Gold earned) ───────────────────
+  {
+    key:            'magic_academy',
+    label:          'Magic Academy',
+    tab:            'Magic',
+    spriteFrame:    'House_5_Stone_Base_Blue',
+    footprint:      { w: 3, h: 3 },
+    terrainAllowed: ['grass'],
+    unlockKey:      'tier9_magic',
+    cost:           { Stone: 60, Gold: 80 },
+    produces:       { Mana: 0.1 },
+    consumes:       { Gold: 0.02 },
+    workerSlots:    3,
+    workerSprite:   'chef_chloe',
+    isHouse:        false,
+    isMagic:        true,
+  },
+
+  // ─── Tier 10 — Expansion Land (unlock: Magic District) ───────────────────
+  // Expansion is handled via FogOfWar.tryRevealRegion() — no placeable building.
+  // The "Expansion" tab is shown when tier10_expansion is unlocked.
 ];

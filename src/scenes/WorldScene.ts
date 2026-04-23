@@ -5,6 +5,9 @@ import { TimeSystem, HOUR_DAWN, HOUR_DAY, HOUR_NIGHT } from '../systems/TimeSyst
 import { EconomySystem } from '../systems/EconomySystem';
 import { ResourceNodeSystem } from '../systems/ResourceNodeSystem';
 import { VillagerSystem } from '../systems/VillagerSystem';
+import { UnlockSystem } from '../systems/UnlockSystem';
+import { SaveSystem } from '../systems/SaveSystem';
+import { FogOfWar } from '../systems/FogOfWar';
 import { Animal } from '../entities/Animal';
 import type { Resources } from '../systems/EconomySystem';
 import type { PlacedBuildingData, BuildingInfo, AnimalType } from '../types';
@@ -14,15 +17,11 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
 const DEPTH_GROUND    = 0;
 const DEPTH_ABOVE     = 20;
-const DEPTH_OVERLAY   = 80; // day/night overlay — above world, below UI
+const DEPTH_OVERLAY   = 80;
 
-/** Particle count for rain emitter. */
-const RAIN_COUNT = 40;
-
-/** ms between weather rolls (5 game-minutes = 5000ms at GAME_MINUTE_MS=1000). */
+const RAIN_COUNT             = 40;
 const WEATHER_CHECK_INTERVAL = 5;
 const WEATHER_RAIN_CHANCE    = 0.10;
-/** Game-minutes rain lasts once triggered. */
 const WEATHER_RAIN_DURATION  = 2;
 
 export class WorldScene extends Scene {
@@ -32,15 +31,20 @@ export class WorldScene extends Scene {
   readonly economySystem!:     EconomySystem;
   private resourceNodeSystem!: ResourceNodeSystem;
   private villagerSystem!:     VillagerSystem;
+  private unlockSystem!:       UnlockSystem;
+  private saveSystem!:         SaveSystem;
+  private fogOfWar!:           FogOfWar;
   private animals:             Animal[] = [];
   private dayNightOverlay!:    GameObjects.Rectangle;
   private rainEmitter:         Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private weatherTickCounter = 0;
   private rainTicksRemaining = 0;
+  private paused =             false;
   private keys!: {
     one:   Input.Keyboard.Key;
     two:   Input.Keyboard.Key;
     three: Input.Keyboard.Key;
+    esc:   Input.Keyboard.Key;
   };
 
   constructor() {
@@ -82,6 +86,25 @@ export class WorldScene extends Scene {
     this.timeSystem     = new TimeSystem(this);
     this.villagerSystem = new VillagerSystem(this);
 
+    this.unlockSystem = new UnlockSystem(
+      this,
+      this.economySystem,
+      this.villagerSystem,
+      this.buildSystem,
+    );
+
+    this.fogOfWar = new FogOfWar(this, this.economySystem, map.width, map.height);
+
+    this.saveSystem = new SaveSystem(
+      this,
+      this.economySystem,
+      this.timeSystem,
+      this.buildSystem,
+      this.villagerSystem,
+      this.unlockSystem,
+      this.fogOfWar,
+    );
+
     // Spawn animals and villagers when buildings are placed
     this.events.on('building:placed', (data: PlacedBuildingData) => {
       if (data.def.isHouse) {
@@ -101,7 +124,6 @@ export class WorldScene extends Scene {
       const info = this.computeBuildingInfo(data);
       this.events.emit('building:info', info);
 
-      // If the building has worker slots, also emit for assign panel
       if ((data.def.workerSlots ?? 0) > 0) {
         this.events.emit('building:workplace:selected', data);
       }
@@ -111,8 +133,7 @@ export class WorldScene extends Scene {
       this.events.emit('building:workplace:deselected');
     });
 
-    // Day/night overlay — fixed to screen, scrolls with nothing.
-    // fillAlpha must be 1; we tween the game-object alpha (0=transparent, 0.6=night).
+    // Day/night overlay
     this.dayNightOverlay = this.add
       .rectangle(0, 0, GAME_WIDTH * 4, GAME_HEIGHT * 4, 0x1a2255, 1)
       .setAlpha(0)
@@ -120,14 +141,17 @@ export class WorldScene extends Scene {
       .setScrollFactor(0)
       .setDepth(DEPTH_OVERLAY);
 
-    // Listen to time events for day/night transitions
     this.events.on('time:dawn',  this.onDawn,  this);
     this.events.on('time:day',   this.onDay,   this);
     this.events.on('time:night', this.onNight, this);
     this.events.on('time:tick',  this.onTick,  this);
 
-    // Set initial overlay to night (starting hour is 6 = just-day)
     this.onDay();
+
+    // Try to load a save
+    if (this.saveSystem.hasSave()) {
+      this.saveSystem.load();
+    }
 
     this.scene.launch('UIScene');
 
@@ -136,6 +160,7 @@ export class WorldScene extends Scene {
       one:   kb.addKey(Input.Keyboard.KeyCodes.ONE),
       two:   kb.addKey(Input.Keyboard.KeyCodes.TWO),
       three: kb.addKey(Input.Keyboard.KeyCodes.THREE),
+      esc:   kb.addKey(Input.Keyboard.KeyCodes.ESC),
     };
   }
 
@@ -147,7 +172,26 @@ export class WorldScene extends Scene {
     return this.villagerSystem;
   }
 
+  getUnlockSystem(): UnlockSystem {
+    return this.unlockSystem;
+  }
+
+  getSaveSystem(): SaveSystem {
+    return this.saveSystem;
+  }
+
+  getFogOfWar(): FogOfWar {
+    return this.fogOfWar;
+  }
+
+  /** Called by UIScene when the player wants to toggle pause. */
+  setPaused(p: boolean): void {
+    this.paused = p;
+  }
+
   update(_time: number, delta: number): void {
+    if (this.paused) return;
+
     this.inputSystem.update(delta);
     this.timeSystem.update(delta);
     this.villagerSystem.update(delta);
@@ -160,6 +204,15 @@ export class WorldScene extends Scene {
       this.events.emit('build:start', buildingCatalog[1].key);
     } else if (Input.Keyboard.JustDown(this.keys.three)) {
       this.events.emit('build:start', buildingCatalog[2].key);
+    }
+
+    // ESC: cancel placement or emit pause:toggle
+    if (Input.Keyboard.JustDown(this.keys.esc)) {
+      if (this.buildSystem.isActive()) {
+        this.buildSystem.cancel();
+      } else {
+        this.events.emit('pause:toggle');
+      }
     }
   }
 
@@ -199,28 +252,15 @@ export class WorldScene extends Scene {
   // ─── day/night ────────────────────────────────────────────────────────────
 
   private onDawn(): void {
-    // Fade overlay from night toward day
-    this.tweens.add({
-      targets:  this.dayNightOverlay,
-      alpha:    0.35,
-      duration: 800,
-    });
+    this.tweens.add({ targets: this.dayNightOverlay, alpha: 0.35, duration: 800 });
   }
 
   private onDay(): void {
-    this.tweens.add({
-      targets:  this.dayNightOverlay,
-      alpha:    0,
-      duration: 1500,
-    });
+    this.tweens.add({ targets: this.dayNightOverlay, alpha: 0, duration: 1500 });
   }
 
   private onNight(): void {
-    this.tweens.add({
-      targets:  this.dayNightOverlay,
-      alpha:    0.6,
-      duration: 2000,
-    });
+    this.tweens.add({ targets: this.dayNightOverlay, alpha: 0.6, duration: 2000 });
   }
 
   // ─── weather ──────────────────────────────────────────────────────────────
@@ -230,9 +270,7 @@ export class WorldScene extends Scene {
 
     if (this.rainTicksRemaining > 0) {
       this.rainTicksRemaining--;
-      if (this.rainTicksRemaining === 0) {
-        this.stopRain();
-      }
+      if (this.rainTicksRemaining === 0) this.stopRain();
     }
 
     if (this.weatherTickCounter >= WEATHER_CHECK_INTERVAL) {
@@ -245,12 +283,8 @@ export class WorldScene extends Scene {
 
   private startRain(): void {
     if (this.rainEmitter) return;
-
     const cam = this.cameras.main;
     const w   = cam.width;
-
-    // Emit rain drops scrolling with the camera (use scrollFactor 0 emitter position)
-    // Particles use world coords; position at top of viewport
     try {
       this.rainEmitter = this.add.particles(w / 2, -20, 'weather', {
         frame:    'Rain_Drop',
@@ -267,17 +301,13 @@ export class WorldScene extends Scene {
       });
       this.rainEmitter.setDepth(DEPTH_OVERLAY - 1);
       this.rainEmitter.setScrollFactor(0);
-    } catch {
-      // Particle emitter may not be available in all Phaser 4 builds
-    }
+    } catch { /* particle API may vary */ }
 
-    // Blue tint bump during rain
     this.tweens.add({
       targets:  this.dayNightOverlay,
       alpha:    Math.min(this.dayNightOverlay.alpha + 0.15, 0.7),
       duration: 1000,
     });
-
     this.rainTicksRemaining = WEATHER_RAIN_DURATION;
   }
 
@@ -289,14 +319,9 @@ export class WorldScene extends Scene {
         this.rainEmitter = null;
       });
     }
-    // Restore overlay alpha to pre-rain value based on time of day
     const hour   = this.timeSystem.gameHour;
     const target = (hour >= HOUR_DAY && hour < HOUR_NIGHT) ? 0 :
                    (hour === HOUR_DAWN) ? 0.35 : 0.6;
-    this.tweens.add({
-      targets:  this.dayNightOverlay,
-      alpha:    target,
-      duration: 2000,
-    });
+    this.tweens.add({ targets: this.dayNightOverlay, alpha: target, duration: 2000 });
   }
 }

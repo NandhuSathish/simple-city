@@ -7,6 +7,7 @@ export interface Resources {
   Stone: number;
   Food:  number;
   Gold:  number;
+  Mana:  number;
 }
 
 interface PlacedEntry {
@@ -20,6 +21,7 @@ const STARTING_RESOURCES: Resources = {
   Stone: 20,
   Food:  30,
   Gold:  100,
+  Mana:  0,
 };
 
 export class EconomySystem {
@@ -27,6 +29,10 @@ export class EconomySystem {
   private resources:         Resources = { ...STARTING_RESOURCES };
   private entries:           PlacedEntry[] = [];
   private resourceNodes:     ResourceNodeSystem | null = null;
+  private happinessMultiplier = 1.0;
+  // Cumulative totals — only go up, never deducted
+  private _cumulativeGold  = 0;
+  private _cumulativeStone = 0;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -37,16 +43,22 @@ export class EconomySystem {
     this.resourceNodes = rns;
   }
 
+  /** Set the production speed multiplier from the happiness system (1.0 – 1.3). */
+  setHappinessMultiplier(m: number): void {
+    this.happinessMultiplier = m;
+  }
+
   canAfford(cost: ResourceMap): boolean {
     for (const [k, v] of Object.entries(cost) as [ResourceType, number][]) {
-      if (this.resources[k] < v) return false;
+      const cur = this.resources[k] ?? 0;
+      if (cur < v) return false;
     }
     return true;
   }
 
   deductCost(cost: ResourceMap): void {
     for (const [k, v] of Object.entries(cost) as [ResourceType, number][]) {
-      this.resources[k] = Math.max(0, this.resources[k] - v);
+      this.resources[k] = Math.max(0, (this.resources[k] ?? 0) - v);
     }
     this.emit();
   }
@@ -55,31 +67,44 @@ export class EconomySystem {
     this.entries.push({ def, col, row });
   }
 
+  removeBuilding(col: number, row: number): void {
+    this.entries = this.entries.filter(e => !(e.col === col && e.row === row));
+  }
+
   getSnapshot(): Resources {
     return { ...this.resources };
   }
 
-  /**
-   * Returns the effective production rate of a placed building, factoring in
-   * nearby resource density. Used by the info panel for display.
-   */
+  get cumulativeGold():  number { return this._cumulativeGold; }
+  get cumulativeStone(): number { return this._cumulativeStone; }
+
+  /** Directly set resources (used by SaveSystem during load). */
+  restoreResources(r: Resources): void {
+    this.resources = { ...r };
+    this.emit();
+  }
+
+  restoreStats(goldEarned: number, stoneGathered: number): void {
+    this._cumulativeGold  = goldEarned;
+    this._cumulativeStone = stoneGathered;
+  }
+
   getEffectiveRate(def: BuildingDef, col: number, row: number): ResourceMap {
     const workers = def.workerSlots ?? 1;
     const radius  = def.productionRadius ?? 0;
+    const hm      = this.happinessMultiplier;
 
     if (def.requiresTrees) {
       const density = this.resourceNodes?.getTreeDensity(col, row, radius) ?? 0;
-      return scaleMap(def.produces, workers * density);
+      return scaleMap(def.produces, workers * density * hm);
     }
     if (def.requiresOre) {
       const density = this.resourceNodes?.getOreDensity(col, row, radius) ?? 0;
-      return scaleMap(def.produces, workers * density);
+      return scaleMap(def.produces, workers * density * hm);
     }
-    // Farm or simple producer — flat rate
-    return scaleMap(def.produces, workers);
+    return scaleMap(def.produces, workers * hm);
   }
 
-  /** Returns a human-readable resource availability message for the info panel. */
   getResourceMessage(def: BuildingDef, col: number, row: number): string {
     const radius = def.productionRadius ?? 0;
     if (def.requiresTrees) {
@@ -101,6 +126,7 @@ export class EconomySystem {
     for (const { def, col, row } of this.entries) {
       const workers = def.workerSlots ?? 1;
       const radius  = def.productionRadius ?? 0;
+      const hm      = this.happinessMultiplier;
 
       let density = 1;
       if (def.requiresTrees) {
@@ -117,12 +143,15 @@ export class EconomySystem {
         }
       }
 
-      const effectiveScale = workers * density;
+      const effectiveScale = workers * density * hm;
       for (const [k, v] of Object.entries(def.produces) as [ResourceType, number][]) {
-        this.resources[k] += v * effectiveScale;
+        const gained = v * effectiveScale;
+        this.resources[k] = (this.resources[k] ?? 0) + gained;
+        if (k === 'Gold')  this._cumulativeGold  += gained;
+        if (k === 'Stone') this._cumulativeStone += gained;
       }
       for (const [k, v] of Object.entries(def.consumes) as [ResourceType, number][]) {
-        this.resources[k] = Math.max(0, this.resources[k] - v);
+        this.resources[k] = Math.max(0, (this.resources[k] ?? 0) - v);
       }
     }
     this.emit();

@@ -2,7 +2,7 @@ import { Scene, GameObjects } from 'phaser';
 import { TILE_SIZE, UI_TOP_BAR_H, UI_BOTTOM_BAR_H } from '../config';
 import type { BuildingDef, PlacedBuildingData } from '../types';
 import { buildingCatalog } from '../data/buildingCatalog';
-import { worldToTile, isFree, isTerrainAllowed, occupy } from '../utils/grid';
+import { worldToTile, isFree, isTerrainAllowed, occupy, hasWaterAdjacent } from '../utils/grid';
 import type { EconomySystem } from './EconomySystem';
 
 const TINT_VALID      = 0x00ff00;
@@ -66,6 +66,39 @@ export class BuildSystem {
     return this.placed.map(e => e.data);
   }
 
+  /**
+   * Restore a building from save data — bypasses cost deduction and building:placed event.
+   * Marks occupancy, creates sprite, and registers with economy.
+   */
+  silentPlace(key: string, col: number, row: number): PlacedBuildingData | null {
+    const def = buildingCatalog.find(b => b.key === key);
+    if (!def) return null;
+    const id = nextBuildingId++;
+    occupy(col, row, def.footprint.w, def.footprint.h, id);
+    this.economy.addBuilding(def, col, row);
+
+    const pos = this.ghostWorldPos2(col, row, def);
+    const sprite = this.scene.add
+      .image(pos.x, pos.y, 'buildings', def.spriteFrame)
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH_BUILDINGS)
+      .setInteractive({ useHandCursor: true });
+
+    if (def.isMagic) sprite.setTint(0x9966ff);
+
+    const data: PlacedBuildingData = { id, def, col, row };
+    this.placed.push({ data, sprite });
+
+    sprite.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.button !== 0) return;
+      if (this.activeDef) return;
+      ptr.event.stopPropagation();
+      this.scene.events.emit('building:selected', data);
+    });
+
+    return data;
+  }
+
   // ─── private ──────────────────────────────────────────────────────────────
 
   private footprintOrigin(worldX: number, worldY: number): { col: number; row: number } {
@@ -77,17 +110,29 @@ export class BuildSystem {
     };
   }
 
-  private ghostWorldPos(col: number, row: number): { x: number; y: number } {
-    const fp = this.activeDef!.footprint;
+  private ghostWorldPos2(col: number, row: number, def: BuildingDef): { x: number; y: number } {
     return {
-      x: (col + fp.w / 2) * TILE_SIZE,
-      y: (row + fp.h)     * TILE_SIZE,
+      x: (col + def.footprint.w / 2) * TILE_SIZE,
+      y: (row + def.footprint.h)     * TILE_SIZE,
     };
+  }
+
+  private ghostWorldPos(col: number, row: number): { x: number; y: number } {
+    return this.ghostWorldPos2(col, row, this.activeDef!);
   }
 
   private isOverUI(pointer: Phaser.Input.Pointer): boolean {
     const H = this.scene.scale.height;
     return pointer.y < UI_TOP_BAR_H || pointer.y > H - UI_BOTTOM_BAR_H;
+  }
+
+  private isValidPlacement(def: BuildingDef, col: number, row: number): boolean {
+    const { w, h } = def.footprint;
+    const footprintFree = isFree(col, row, w, h);
+    const terrainOk     = isTerrainAllowed(col, row, w, h, def.terrainAllowed);
+    const canAfford     = this.economy.canAfford(def.cost);
+    const waterOk       = !def.requiresWaterAdj || hasWaterAdjacent(col, row, w, h);
+    return footprintFree && terrainOk && canAfford && waterOk;
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -104,17 +149,12 @@ export class BuildSystem {
     const pos = this.ghostWorldPos(col, row);
     this.ghost.setPosition(pos.x, pos.y);
 
-    const { w, h } = this.activeDef.footprint;
-    const footprintFree  = isFree(col, row, w, h);
-    const terrainOk      = isTerrainAllowed(col, row, w, h, this.activeDef.terrainAllowed);
-    const canAfford      = this.economy.canAfford(this.activeDef.cost);
-    this.currentValid    = footprintFree && terrainOk && canAfford;
+    this.currentValid = this.isValidPlacement(this.activeDef, col, row);
     this.ghost.setTint(this.currentValid ? TINT_VALID : TINT_INVALID);
   }
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!this.activeDef) {
-      // No placement in progress — check for building selection
       if (pointer.button === 0 && !this.isOverUI(pointer)) {
         this.checkBuildingClick(pointer);
       }
@@ -140,6 +180,8 @@ export class BuildSystem {
       .setDepth(DEPTH_BUILDINGS)
       .setInteractive({ useHandCursor: true });
 
+    if (def.isMagic) sprite.setTint(0x9966ff);
+
     const data: PlacedBuildingData = { id, def, col, row };
     this.placed.push({ data, sprite });
 
@@ -150,9 +192,7 @@ export class BuildSystem {
       this.scene.events.emit('building:selected', data);
     });
 
-    // Exit placement mode after one placement so the building is immediately clickable.
     this.cancel();
-
     this.scene.events.emit('building:placed', data);
   }
 
@@ -170,7 +210,6 @@ export class BuildSystem {
         return;
       }
     }
-    // Clicking empty space closes the info panel
     this.scene.events.emit('building:deselected');
   }
 }

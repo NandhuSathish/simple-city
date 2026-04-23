@@ -48,6 +48,8 @@ export class Villager {
   }
 
   get currentState(): VillagerState { return this.state; }
+  get tileCol(): number { return Math.floor(this.wx / TILE_SIZE); }
+  get tileRow(): number { return Math.floor(this.wy / TILE_SIZE); }
 
   getWorldPos(): { x: number; y: number } {
     return { x: this.wx, y: this.wy };

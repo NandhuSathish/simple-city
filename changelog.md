@@ -1,5 +1,91 @@
 # changelog.md
 
+---
+
+## [Phase 6 — Districts & Progression] 2026-04-23
+
+Goal: The 10 concept-panel districts become content tiers unlocked as the city grows. Full save/load. Pause menu + tech tree. Happiness system. Fog of war.
+
+### Added
+
+- **`src/systems/UnlockSystem.ts`** — Tracks `unlocks: Set<string>` for all 10 tiers. Checks conditions each `time:tick` and on `building:placed`. Emits `unlock:gained` when a new tier opens. Computes `happiness = decoration_count / house_count` and propagates it to EconomySystem as a production multiplier (×1.0 at 0 → ×1.3 at 1.0). `UNLOCK_DEFS` array exported for TechTree.
+
+- **`src/systems/SaveSystem.ts`** — Full game state serialized to localStorage key `cf_city_save_v1` (version 1). Snapshot: resources, camera, time, buildings[], villagers[], unlocks[], fogRevealed[], stats (cumulative gold/stone). `save()` writes JSON; `load()` restores via `silentPlace`, `restoreResources`, `restoreUnlocks`, `restoreRevealed`. Auto-loads on WorldScene create if a save exists.
+
+- **`src/systems/FogOfWar.ts`** — Dark overlay on 10×10-tile regions. Center 3×3 revealed by default. `tryRevealRegion(rx, ry)` deducts 50 Gold and fades out the panel. Panels persist through load via `restoreRevealed`. UIScene click handler triggers reveal when Tier 10 is unlocked.
+
+- **`src/ui/PauseMenu.ts`** — Esc key toggles pause overlay (depth 300). Buttons: Resume, Save Game, Load Game, Tech Tree. Pausing sets `WorldScene.paused = true` so `update()` skips all ticks.
+
+- **`src/ui/TechTree.ts`** — Full-screen unlock tree (depth 290). 5-column layout with edges drawn via `Graphics`. Each node shows label, description, lock/unlock badge. Rebuilt on every `show()` to reflect current unlock state.
+
+- **`src/ui/BuildMenu.ts`** — Rewritten. Tabs are now dynamic — only tabs with at least one unlocked building appear. `onUnlockChanged()` rebuilds tabs + buttons. Decor items (Fountain, Benches, Flowers, Boat) pull sprites from `decor` atlas instead of `buildings`. Expansion tab shows a hint text instead of building buttons. Tooltip includes water-adjacency note.
+
+- **`src/ui/ResourceBar.ts`** — Mana row added. Mana icon (`other_0` tinted purple) and counter hidden until `resources.Mana > 0`.
+
+### Changed
+
+- **`src/types.ts`** — `ResourceType` gains `'Mana'`. `BuildMenuTab` gains `'Marketplace' | 'Waterfront' | 'Defense' | 'Magic' | 'Expansion'`. `BuildingDef` gains: `unlockKey`, `requiresWaterAdj`, `isDecoration`, `isMagic`, `triggersWaterfront`. Added `SaveData`, `SavedBuilding`, `SavedVillager`, `SaveStats` interfaces.
+
+- **`src/systems/EconomySystem.ts`** — `Resources` interface adds `Mana: number`. Tracks `cumulativeGold` and `cumulativeStone` (accumulate on production, not on deduction). Accepts `happinessMultiplier` from UnlockSystem. `restoreResources()` and `restoreStats()` added for load. `removeBuilding()` added for future demolish support.
+
+- **`src/systems/BuildSystem.ts`** — `isValidPlacement()` now checks `requiresWaterAdj` via `hasWaterAdjacent()`. `silentPlace(key, col, row)` restores buildings without paying cost or emitting events. Magic buildings get `setTint(0x9966ff)` automatically.
+
+- **`src/data/buildingCatalog.ts`** — Expanded from 6 to 21 buildings across Tiers 1–9:
+  - Tier 2: Lumberjack Hut, Quarry, Farm, Coop (moved from starter)
+  - Tier 3: Stone House, Limestone House
+  - Tier 4: Market Stall (triggers Waterfront unlock), Fountain
+  - Tier 5: Fisherman House (requires water adjacency), Boat
+  - Tier 6: Mining Post (Blacksmith_House_Blue sprite)
+  - Tier 7: Wall Segment (Well sprite placeholder)
+  - Tier 8: Park Bench, Flower Garden
+  - Tier 9: Magic Academy (House_5_Stone_Base_Blue + purple tint + isMagic)
+  - Tier 10: Expansion managed by FogOfWar (no catalog entry)
+
+- **`src/scenes/WorldScene.ts`** — Wires UnlockSystem, SaveSystem, FogOfWar. Auto-loads save on create. Esc key: cancels active placement first; if no placement active, emits `pause:toggle`. `paused` flag skips all system updates. Exposes `getUnlockSystem()`, `getSaveSystem()`, `getFogOfWar()`.
+
+- **`src/scenes/UIScene.ts`** — Creates PauseMenu and TechTree. Handles `unlock:gained` (rebuilds BuildMenu, shows toast). Handles `pause:toggle`. Handles fog expansion clicks (checks `tier10_expansion` unlock). Toast queue system with fade-in/fade-out.
+
+- **`src/scenes/PreloadScene.ts`** — Adds `fisherman_fin` to NPC_SHEETS with `cols: 9`. `registerNpcAnims()` uses per-NPC column count.
+
+- **`tools/pack-atlases.js`** — `packDecor()` expanded from 1 sprite (Ores) to 6: Ores, Fountain, Benches, Flowers, Boat, Minecrats. NPC_SHEETS gains `Fisherman_Fin.png` (9 cols × 13 rows = 117 frames). NPCs atlas now has 519 frames.
+
+- **`tools/build-tilesets.ts`** — Canvas height extended from 592→608. Water_Middle.png added at Y=592 (GID 593).
+
+- **`tools/gen-starter-map.ts`** — Water patch added: rows 5–18, cols 52–63 (GID 593). tileset imageheight and tilecount updated to 608.
+
+- **`src/utils/grid.ts`** — `gidToTerrain` recognizes GID 593 as `'water'`. New `hasWaterAdjacent(col, row, w, h)` checks the 1-tile border around a footprint for water terrain.
+
+- **`src/entities/Villager.ts`** — `tileCol` and `tileRow` getters exposed for SaveSystem serialization.
+
+### Unlock conditions
+
+| Tier | Key | Condition |
+|------|-----|-----------|
+| 1 | tier1_starter | Always |
+| 2 | tier2_farming | ≥ 1 Wood House |
+| 3 | tier3_residential | ≥ 3 Wood Houses |
+| 4 | tier4_marketplace | ≥ 100 Gold earned cumulative |
+| 5 | tier5_waterfront | First Market Stall placed |
+| 6 | tier6_quarry | ≥ 50 Stone gathered cumulative |
+| 7 | tier7_walls | ≥ 10 villagers |
+| 8 | tier8_park | happiness ≥ 0.5 (decor ≥ half houses) |
+| 9 | tier9_magic | ≥ 200 Gold earned cumulative |
+| 10 | tier10_expansion | tier9_magic unlocked |
+
+### Notes / deviations from PLAN.md
+
+- **Bridge replaced**: Waterfront unlock now triggers on placing first Market Stall (instead of "first bridge placed") — no suitable single-sprite bridge asset found in the pack.
+- **Church_Blue skipped**: 448×144 px is a composite panoramic sprite not suitable as a single placed building. Magic Academy uses `House_5_Stone_Base_Blue` with `0x9966ff` tint instead.
+- **Wall segments**: Use Well sprite as placeholder (as noted in PLAN.md §5 Phase 6: "may require hand-sliced assets from Cliff tileset").
+- **Fisherman_Fin animations**: Packed with 9 columns (per pack's 576px-wide sheet layout).
+
+### Verification
+
+- `tsc --noEmit` → 0 errors
+- `npm run build` → success, ~1.41 MB bundle (368 kB gzip), ~2.4s
+
+---
+
 All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---

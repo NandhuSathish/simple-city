@@ -25,9 +25,10 @@ interface SpriteSheetDef {
 const NPC_COLS = 6;
 
 interface NpcDef {
-  key:    string;
-  rows:   number;
-  prefix: string;
+  key:     string;
+  rows:    number;
+  prefix:  string;
+  cols?:   number;  // defaults to NPC_COLS (6); Fisherman_Fin uses 9
 }
 
 const NPC_SHEETS: NpcDef[] = [
@@ -38,6 +39,7 @@ const NPC_SHEETS: NpcDef[] = [
   { key: 'chef_chloe',      rows: 7,  prefix: 'chef_chloe'      },
   { key: 'bartender_bruno', rows: 7,  prefix: 'bartender_bruno' },
   { key: 'bartender_katy',  rows: 7,  prefix: 'bartender_katy'  },
+  { key: 'fisherman_fin',   rows: 13, prefix: 'fisherman_fin',   cols: 9 },
 ];
 
 const ANIM_ROWS = [
@@ -86,13 +88,14 @@ export class PreloadScene extends Scene {
 
   private registerNpcAnims(): void {
     for (const npc of NPC_SHEETS) {
+      const cols = npc.cols ?? NPC_COLS;
       for (const anim of ANIM_ROWS) {
         if (anim.row >= npc.rows) continue;
-        const start = anim.row * NPC_COLS;
+        const start = anim.row * cols;
         const frames = this.anims.generateFrameNames('npcs', {
           prefix: `${npc.prefix}_`,
           start,
-          end:    start + NPC_COLS - 1,
+          end:    start + cols - 1,
         });
         this.anims.create({
           key:       `${npc.prefix}_${anim.name}`,
@@ -106,11 +109,11 @@ export class PreloadScene extends Scene {
       if (workAnims) {
         for (const wa of workAnims) {
           if (wa.row >= npc.rows) continue;
-          const start = wa.row * NPC_COLS;
+          const start = wa.row * cols;
           const frames = this.anims.generateFrameNames('npcs', {
             prefix: `${npc.prefix}_`,
             start,
-            end:    start + NPC_COLS - 1,
+            end:    start + cols - 1,
           });
           this.anims.create({
             key:       `${npc.prefix}_${wa.name}`,

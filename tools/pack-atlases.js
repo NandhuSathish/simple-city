@@ -167,17 +167,30 @@ async function packTrees() {
   });
 }
 
-// ─── decor (ores) ─────────────────────────────────────────────────────────────
+// ─── decor (ores + outdoor decorations) ──────────────────────────────────────
+
+const DECOR_FILES = [
+  'Ores.png',
+  'Fountain.png',
+  'Benches.png',
+  'Flowers.png',
+  'Boat.png',
+  'Minecrats.png',
+];
 
 async function packDecor() {
   const decorDir = join(ASSET_SRC, 'Outdoor decoration');
-  const oreFile  = join(decorDir, 'Ores.png');
-  const images   = [{ path: 'Ores.png', contents: readFileSync(oreFile) }];
-  console.log('\nPacking decor atlas (Ores)…');
+  const images = [];
+  for (const file of DECOR_FILES) {
+    const fp = join(decorDir, file);
+    if (!existsSync(fp)) { console.warn(`  SKIP decor ${file}: not found`); continue; }
+    images.push({ path: file, contents: readFileSync(fp) });
+  }
+  console.log(`\nPacking decor atlas (${images.length} sprites)…`);
   await packAtlas(images, {
     textureName:         'decor',
-    width:               512,
-    height:              512,
+    width:               1024,
+    height:              1024,
     fixedSize:           false,
     padding:             2,
     allowRotation:       false,
@@ -246,7 +259,7 @@ const NPC_SHEETS = [
   { file: 'Chef_Chloe.png',       prefix: 'chef_chloe',       cols: 6, rows: 7  },
   { file: 'Bartender_Bruno.png',  prefix: 'bartender_bruno',  cols: 6, rows: 7  },
   { file: 'Bartender_Katy.png',   prefix: 'bartender_katy',   cols: 6, rows: 7  },
-  // Fisherman_Fin deferred to Phase 6 (different column count: 9)
+  { file: 'Fisherman_Fin.png',    prefix: 'fisherman_fin',    cols: 9, rows: 13 },
 ];
 
 async function packNpcs() {
