@@ -150,7 +150,7 @@ export class BuildSystem {
       this.scene.events.emit('building:selected', data);
     });
 
-    this.scene.events.emit('building:placed', { key: def.key, col, row, id });
+    this.scene.events.emit('building:placed', data);
   }
 
   private checkBuildingClick(pointer: Phaser.Input.Pointer): void {

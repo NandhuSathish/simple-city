@@ -4,6 +4,57 @@ All notable changes to the Cute Fantasy City Builder, by phase/session.
 
 ---
 
+## [Phase 5 — Life: Villagers, Animals, Day/Night, Weather] 2026-04-23
+
+Goal: The world feels alive — villagers commute between home and work, animals wander in their pens, the sky cycles through dawn/day/night, and rain occasionally falls.
+
+### Added
+
+- **`src/utils/pathfinding.ts`** — A* pathfinding over the occupancy grid. Trees/ore nodes block (registered via `registerPathfindingBlocker`); decoration does not. 4-directional, capped at 3000 iterations. Resolves a walkable neighbour when the destination tile is blocked.
+
+- **`src/entities/Villager.ts`** — Villager NPC. State machine: `idle → walkToWork → work → walkHome → sleep`. Walks along A* paths in world space at 32 px/s (2 tiles/s). Plays directional `idle_*` / `walk_*` animations from the npcs atlas. Hides sprite when sleeping.
+
+- **`src/systems/VillagerSystem.ts`** — Manages all villagers. Spawns one per house placed (`isHouse: true` in catalog). Sends villagers to work on `time:day`, home on `time:night`. Exposes `assignVillager(id, buildingData)` and `getUnassignedVillagers()` for the UI.
+
+- **`src/entities/Animal.ts`** — Animal entity for chickens/cows/pigs. Random-walks inside the building footprint + 3-tile radius. Speed ~12 px/s with random direction changes every 2–4s. Uses the animals atlas at 0.06 scale to display tile-sized sprites. Bounces off zone boundaries.
+
+- **`src/ui/VillagerAssignPanel.ts`** — Assignment popup shown when a workplace building is clicked. Lists up to 7 unassigned villagers; clicking one assigns them and closes the panel.
+
+- **`public/assets/atlases/npcs.{png,json}`** — 402 frames sliced from 7 NPC sheets at 64×64 (Farmer_Bob, Farmer_Buba, Lumberjack_Jack, Miner_Mike, Chef_Chloe, Bartender_Bruno, Bartender_Katy). Frame naming: `{npc_key}_{frameIndex}`.
+
+- **`public/assets/atlases/animals.{png,json}`** — 43 frames: Chicken_01–18, Cow_01–09, Pig_01–16. Individual PNGs (each ~256×512) packed into a 4096×4096 atlas.
+
+- **`public/assets/atlases/weather.{png,json}`** — 4 frames: Clouds, Rain_Drop, Rain_Drop_Impact, Wind_Anim.
+
+### Changed
+
+- **`tools/pack-atlases.js`** — Added `packNpcs()`, `packAnimals()`, `packWeather()`. Fixed `ASSET_SRC` to fall back to the project parent folder if `G:/Cute_Fantasy` doesn't exist (multi-machine support). Animals atlas uses 4096×4096 to fit 43 large individual-frame PNGs in one page.
+
+- **`src/systems/TimeSystem.ts`** — Now tracks `gameHour` (0–23). Emits `time:dawn` at hour 5, `time:day` at hour 6, `time:night` at hour 20 in addition to `time:tick`. Exports `HOUR_DAWN`, `HOUR_DAY`, `HOUR_NIGHT`, `HOURS_PER_DAY` for consumers.
+
+- **`src/utils/grid.ts`** — Added `getOccupancyAt(col, row)` and `getGridDimensions()` for pathfinding.
+
+- **`src/systems/ResourceNodeSystem.ts`** — Added `hasNodeAt(col, row)` (returns true for non-depleted nodes) and `registerAsPathfindingBlocker()` (registers itself so A* avoids tree/ore tiles).
+
+- **`src/data/buildingCatalog.ts`** — Added `workerSprite` (NPC key), `isHouse`, `isCoop`, `isBarn` fields. Marked `wood_house_blue` as `isHouse: true`. Added `coop` building (`Coop_Base_Blue`, 2×2, `isCoop: true`, spawns chickens). Marked `farm` as `isBarn: true` (spawns cows + pigs).
+
+- **`src/types.ts`** — Added `NpcKey`, `VillagerState`, `AnimalType` types. Extended `BuildingDef` with `workerSprite`, `isHouse`, `isCoop`, `isBarn`.
+
+- **`src/scenes/PreloadScene.ts`** — Loads `npcs`, `animals`, `weather` atlases. Registers all NPC animations in `create()`: `idle_down/left/right/up`, `walk_down/left/right/up` for all 7 NPCs; work anims (`work_chop`, `work_mine`, `work_plant`, `work_harvest`) for profession NPCs. Registers animal animations (`animal_chicken`, `animal_cow`, `animal_pig`).
+
+- **`src/scenes/WorldScene.ts`** — Wires `VillagerSystem` (spawn on house, update each frame). Spawns `Animal` entities on coop/barn placement. Adds a full-screen overlay `Rectangle` (depth 80, scrollFactor 0) for day/night tinting — dark blue at alpha 0.6 at night, alpha 0 during day, 0.35 at dawn. Tweens the overlay on time events. Adds weather: every 5 game-ticks, 10% chance → 2-minute rain (particle emitter + blue overlay bump).
+
+- **`src/scenes/UIScene.ts`** — Creates `VillagerAssignPanel`, wires `building:workplace:selected / deselected` events from WorldScene.
+
+- **`src/systems/BuildSystem.ts`** — `building:placed` event now emits full `PlacedBuildingData` (was a partial `{key, col, row, id}` object).
+
+### Verification
+
+- `tsc --noEmit` → 0 errors
+- `npm run build` → success, ~1.39 MB bundle (362 kB gzip), ~711ms
+
+---
+
 ## [Phase 4 — Resource Production] 2026-04-22
 
 Goal: Resources flow from staffed production buildings that consume natural resource nodes.

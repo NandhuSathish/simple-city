@@ -2,6 +2,7 @@ import type { Scene } from 'phaser';
 import { ResourceNode } from '../entities/ResourceNode';
 import type { ResourceNodeType } from '../types';
 import { getTerrainAt } from '../utils/grid';
+import { registerPathfindingBlocker } from '../utils/pathfinding';
 
 // Seeded LCG for deterministic node placement
 function makeLcg(seed: number) {
@@ -34,6 +35,16 @@ export class ResourceNodeSystem {
     this.mapCols = mapCols;
     this.mapRows = mapRows;
     scene.events.on('time:tick', this.tick, this);
+  }
+
+  /** Returns true if a resource node (tree or ore) occupies the given tile. */
+  hasNodeAt(col: number, row: number): boolean {
+    return this.nodes.some(n => n.col === col && n.row === row && !n.isDepleted);
+  }
+
+  /** Register this system as the pathfinding blocker so A* avoids tree/ore tiles. */
+  registerAsPathfindingBlocker(): void {
+    registerPathfindingBlocker((col, row) => this.hasNodeAt(col, row));
   }
 
   /** Deterministic node spawn — call after terrain grid is initialised. */

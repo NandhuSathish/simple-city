@@ -303,6 +303,97 @@ Never delete entries — mark outdated ones with ~~strikethrough~~ and add a cor
 
 ---
 
+## NPC Spritesheets (Phase 5, 2026-04-23)
+
+### Frame layout — confirmed for all 7 premade NPCs
+- All sheets: 6 columns × 64px = 384px wide (confirmed by Jimp read)
+- Row order (same for all NPCs, confirmed from knowledge.md Phase 1 reference image):
+  - Row 0 (frames 0–5):   `idle_down`  — Standing, facing down
+  - Row 1 (frames 6–11):  `idle_left`  — Standing, facing left
+  - Row 2 (frames 12–17): `idle_right` — Standing, facing right
+  - Row 3 (frames 18–23): `idle_up`    — Standing, facing up
+  - Row 4 (frames 24–29): `walk_down`  — Walking, facing down
+  - Row 5 (frames 30–35): `walk_left`  — Walking, facing left
+  - Row 6 (frames 36–41): `walk_right` — Walking, facing right
+  - Row 7 (frames 42–47): `walk_up`    — Walking, facing up
+  - Row 8+ : Work/action animations (profession-specific)
+
+### Sheet sizes
+| NPC | File size | Rows | Work rows |
+|---|---|---|---|
+| Farmer_Bob | 384×832 | 13 | Rows 8–12 (plant, harvest, etc.) |
+| Farmer_Buba | 384×832 | 13 | Same as Bob |
+| Lumberjack_Jack | 384×640 | 10 | Rows 8–9 (chop) |
+| Miner_Mike | 384×640 | 10 | Rows 8–9 (mine) |
+| Chef_Chloe | 384×448 | 7 | None (idle + walk only; missing walk_up row 7) |
+| Bartender_Bruno | 384×448 | 7 | None |
+| Bartender_Katy | 384×448 | 7 | None |
+| Fisherman_Fin | 576×832 | — | Deferred to Phase 6; different column count (9 cols) |
+
+- Chef/Bartender sheets have 7 rows → rows 0–6 only. Row 7 (walk_up) is absent. The animation registration skips rows ≥ npc.rows.
+- Work anim names registered: `work_chop`, `work_chop2` (lumberjack), `work_mine`, `work_mine2` (miner), `work_plant`, `work_harvest` (farmers).
+- Exact action semantics for rows 8–12 of Farmer sheets are UNVERIFIED — named `work_plant`/`work_harvest` by convention. Inspect visually during playtesting.
+
+### Atlas packing (npcs.{png,json})
+- Frame naming: `{npc_prefix}_{frameIndex}` where frameIndex = rowIndex × 6 + colIndex
+- Total: 402 frames packed into a single 4096×4096 page.
+- Animation registration in PreloadScene uses `anims.generateFrameNames('npcs', { prefix: '{prefix}_', start, end })`.
+
+---
+
+## Animal Sprites (Phase 5, 2026-04-23)
+
+### Individual frame PNGs (not spritesheets)
+- `Animals/Chicken/Chicken_01.png` … `Chicken_18.png` — individual animation frame PNGs, each **256×512 px**
+- `Animals/Cow/Cow_01.png` … `Cow_09.png` — each **256×480 px**
+- `Animals/Pig/Pig_01.png` … `Pig_16.png` — each **288×480 px**
+- These are NOT spritesheet grid layouts. Each file = one animation frame of the animal.
+- `Rooster.png` excluded from atlas (separate decorative sprite).
+- Animals atlas: 43 frames packed into a 4096×4096 page (required due to large source frame sizes).
+- Frame names: `Chicken_01` … `Chicken_18`, `Cow_01` … `Cow_09`, `Pig_01` … `Pig_16`.
+- **Display scale:** Since source frames are ~256×512, use `setScale(0.06)` to get ~16 world-px wide appearance (1 tile). At RENDER_SCALE=2, appears as ~32 screen px wide.
+
+### Animations registered
+- `animal_chicken` — frames Chicken_01 through Chicken_18 at 8 fps
+- `animal_cow` — frames Cow_01 through Cow_09 at 8 fps
+- `animal_pig` — frames Pig_01 through Pig_16 at 8 fps
+
+---
+
+## Phase 5 — Life (2026-04-23)
+
+### A* pathfinding
+- Implemented in `src/utils/pathfinding.ts`. 4-directional Manhattan heuristic. Capped at 3000 iterations to avoid frame stalls.
+- Blockers registered via `registerPathfindingBlocker(fn)`. ResourceNodeSystem registers trees/ore as blockers.
+- If destination tile is occupied, resolves nearest walkable neighbour within radius 4.
+- Returns `[]` if no path found (VillagerSystem handles gracefully — villager stays idle).
+
+### Villager spawning
+- One villager spawns per `wood_house_blue` placed (checking `def.isHouse === true`).
+- Spawn position: one tile below the house center (bottom edge of footprint).
+- Generic NPC (`chef_chloe`) used for all villagers — sprite shows chef appearance regardless of workplace.
+- **Phase 6 TODO:** Reassign villager NPC sprite to match `def.workerSprite` on assignment (requires re-creating the Sprite object or using a texture swap).
+
+### Day/night visual
+- Single full-screen `Rectangle` in WorldScene at depth 80, scrollFactor 0.
+- Color: `0x1a2255` (dark blue night tint). Alpha: 0.0 day, 0.35 dawn, 0.6 night.
+- Transitions use Phaser tweens (800ms dawn, 1500ms day, 2000ms night).
+- Game starts at hour 6 (day) so overlay initialises at alpha 0.
+
+### Weather system
+- Particle emitter uses `this.add.particles(...)` with `'weather'` atlas and `'Rain_Drop'` frame.
+- Emitter positioned at top of viewport with `setScrollFactor(0)` to follow screen not world.
+- `depth` is NOT a valid key in `ParticleEmitterConfig` (Phaser 4 type error). Use `emitter.setDepth()` after creation instead.
+- `scrollFactorX/Y` are NOT in `ParticleEmitterConfig`. Use `emitter.setScrollFactor(0)` after creation.
+- Rain wrapped in try/catch — if particle emitter API differs across builds, it silently skips particles.
+
+### pack-atlases.js multi-machine fix
+- Hardcoded `ASSET_SRC = 'G:/Cute_Fantasy'` breaks on PCs without that drive.
+- Fix: check if `G:/Cute_Fantasy` exists; fall back to `join(ROOT, '..')` (parent folder of the project).
+- The `LOCAL_ASSET_SRC` path works on this machine where project is nested inside the asset folder.
+
+---
+
 ## BuildSystem (2026-04-22)
 
 ### Ghost sprite anchor and placement (2026-04-22)

@@ -22,6 +22,19 @@ export type BuildMenuTab = 'Housing' | 'Production' | 'Resource' | 'Decoration';
 
 export type ResourceNodeType = 'tree' | 'ore';
 
+export type NpcKey =
+  | 'farmer_bob'
+  | 'farmer_buba'
+  | 'lumberjack_jack'
+  | 'miner_mike'
+  | 'chef_chloe'
+  | 'bartender_bruno'
+  | 'bartender_katy';
+
+export type VillagerState = 'idle' | 'walkToWork' | 'work' | 'walkHome' | 'sleep';
+
+export type AnimalType = 'chicken' | 'cow' | 'pig';
+
 export interface BuildingDef {
   key:            string;
   label:          string;
@@ -40,6 +53,14 @@ export interface BuildingDef {
   requiresTrees?: boolean;
   /** If true, building requires nearby ore ResourceNodes to produce. */
   requiresOre?:   boolean;
+  /** NPC sprite key used for workers assigned to this building. */
+  workerSprite?:  NpcKey;
+  /** If true, placing this building spawns a villager. */
+  isHouse?:       boolean;
+  /** If true, chickens wander inside this building's zone. */
+  isCoop?:        boolean;
+  /** If true, cows/pigs wander inside this building's zone. */
+  isBarn?:        boolean;
 }
 
 /** Data carried on the `building:selected` event. */

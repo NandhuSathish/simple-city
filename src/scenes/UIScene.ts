@@ -2,14 +2,16 @@ import { Scene } from 'phaser';
 import { ResourceBar } from '../ui/ResourceBar';
 import { BuildMenu } from '../ui/BuildMenu';
 import { BuildingInfoPanel } from '../ui/BuildingInfoPanel';
+import { VillagerAssignPanel } from '../ui/VillagerAssignPanel';
 import type { Resources } from '../systems/EconomySystem';
-import type { BuildingInfo } from '../types';
+import type { BuildingInfo, PlacedBuildingData } from '../types';
 import type { WorldScene } from './WorldScene';
 
 export class UIScene extends Scene {
-  private resourceBar!:   ResourceBar;
-  private buildMenu!:     BuildMenu;
-  private infoPanel!:     BuildingInfoPanel;
+  private resourceBar!:      ResourceBar;
+  private buildMenu!:        BuildMenu;
+  private infoPanel!:        BuildingInfoPanel;
+  private assignPanel!:      VillagerAssignPanel;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -22,7 +24,8 @@ export class UIScene extends Scene {
     this.buildMenu   = new BuildMenu(this, (key: string) => {
       world.events.emit('build:start', key);
     });
-    this.infoPanel = new BuildingInfoPanel(this);
+    this.infoPanel  = new BuildingInfoPanel(this);
+    this.assignPanel = new VillagerAssignPanel(this, world.getVillagerSystem());
 
     world.events.on('economy:changed', (res: Resources) => {
       this.resourceBar.update(res);
@@ -35,11 +38,25 @@ export class UIScene extends Scene {
 
     world.events.on('building:deselected', () => {
       this.infoPanel.hide();
+      this.assignPanel.hide();
     }, this);
 
-    // Right-click anywhere in UIScene closes the panel
+    world.events.on('building:workplace:selected', (data: PlacedBuildingData) => {
+      if ((data.def.workerSlots ?? 0) > 0) {
+        this.assignPanel.show(data);
+      }
+    }, this);
+
+    world.events.on('building:workplace:deselected', () => {
+      this.assignPanel.hide();
+    }, this);
+
+    // Right-click anywhere in UIScene closes panels
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      if (ptr.button === 2) this.infoPanel.hide();
+      if (ptr.button === 2) {
+        this.infoPanel.hide();
+        this.assignPanel.hide();
+      }
     });
 
     const snapshot = world.getEconomySnapshot();

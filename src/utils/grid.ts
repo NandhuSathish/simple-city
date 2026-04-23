@@ -76,3 +76,11 @@ export function release(col: number, row: number, w: number, h: number): void {
     }
   }
 }
+
+export function getOccupancyAt(col: number, row: number): number {
+  return occupancy?.[row]?.[col] ?? 0;
+}
+
+export function getGridDimensions(): { cols: number; rows: number } {
+  return { cols: gridCols, rows: gridRows };
+}
