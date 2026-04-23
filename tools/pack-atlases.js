@@ -1,11 +1,13 @@
 /**
  * tools/pack-atlases.js
  * Packs sprite atlases from G:/Cute_Fantasy into public/assets/atlases/.
- * Emits:
- *   buildings.{png,json} — all Buildings/ PNGs + Well
- *   icons.{png,json}     — Icons/Outline/ sheets sliced into 16×16 frames
  *
- * Run: node tools/pack-atlases.js
+ * Run all groups:       node tools/pack-atlases.js
+ * Run one group:        node tools/pack-atlases.js --group=npcs
+ * Valid group names:    buildings, icons, trees, decor, crops, npcs, animals, weather
+ *
+ * NPC and building packing is driven by src/data/sprite-defs.json.
+ * Animals packing reads source PNGs from public/assets/source/ (set by sprite-server).
  *
  * Note: written as .js (not .ts) due to --experimental-strip-types bug with
  * free-tex-packer-core inline callback type annotations (see knowledge.md).
@@ -22,7 +24,6 @@ const packer   = require('free-tex-packer-core');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT      = join(__dirname, '..');
-// Asset source: prefer G:/Cute_Fantasy if it exists (original PC), otherwise use parent folder
 const DEFAULT_ASSET_SRC = 'G:/Cute_Fantasy';
 const LOCAL_ASSET_SRC   = join(ROOT, '..');
 import { existsSync } from 'node:fs';
@@ -31,6 +32,25 @@ const OUT_DIR   = join(ROOT, 'public', 'assets', 'atlases');
 console.log(`Asset source: ${ASSET_SRC}`);
 
 mkdirSync(OUT_DIR, { recursive: true });
+
+// ─── sprite-defs (shared across NPC, building, and animal packers) ─────────────
+
+const SPRITE_DEFS_PATH = join(ROOT, 'src', 'data', 'sprite-defs.json');
+const SPRITE_SOURCE    = join(ROOT, 'public', 'assets', 'source');
+
+let SPRITE_DEFS = { spritesheets: [] };
+try {
+  SPRITE_DEFS = JSON.parse(readFileSync(SPRITE_DEFS_PATH, 'utf-8'));
+} catch {
+  console.warn('Warning: sprite-defs.json not found or invalid — NPC/building/animal atlases will be skipped.');
+}
+
+// ─── --group flag ─────────────────────────────────────────────────────────────
+
+const GROUP_ARG = (() => {
+  const flag = process.argv.find(a => a.startsWith('--group='));
+  return flag ? flag.slice('--group='.length) : null;
+})();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,27 +86,55 @@ function packAtlas(images, options) {
   });
 }
 
-// ─── buildings ────────────────────────────────────────────────────────────────
+// ─── buildings (sprite-defs driven) ──────────────────────────────────────────
+//
+// Reads entries with atlasGroup="buildings" from sprite-defs.json.
+// Looks up each PNG by filename in ASSET_SRC (Buildings/ tree + Well.png).
+// Frame names in the atlas = PNG filename without extension (e.g. House_1_Wood_Base_Blue).
+// Two catalog entries can share the same PNG (well + wall_segment both use Well.png);
+// duplicates are deduplicated before packing.
 
 async function packBuildings() {
-  const sources = [
+  const buildingSheets = SPRITE_DEFS.spritesheets.filter(s => s.atlasGroup === 'buildings');
+  if (!buildingSheets.length) {
+    console.log('\nNo building entries in sprite-defs.json — skipping buildings atlas.');
+    return;
+  }
+
+  // Build filename → full-path index from all PNGs in ASSET_SRC Buildings area.
+  const allBuildingPngs = [
     ...collectPngs(join(ASSET_SRC, 'Buildings', 'Buildings')),
     join(ASSET_SRC, 'Outdoor decoration', 'Well.png'),
   ];
-  const images = sources.map(fp => ({ path: basename(fp), contents: readFileSync(fp) }));
+  const pngIndex = new Map(allBuildingPngs.map(fp => [basename(fp), fp]));
+
+  const images = [];
+  const packed = new Set();
+  for (const sheet of buildingSheets) {
+    const file = basename(sheet.srcFile);
+    if (packed.has(file)) continue;  // skip duplicates (e.g. wall_segment shares Well.png)
+    const fp = pngIndex.get(file);
+    if (!fp) {
+      console.warn(`  SKIP building ${sheet.id}: ${file} not found in asset source`);
+      continue;
+    }
+    images.push({ path: file, contents: readFileSync(fp) });
+    packed.add(file);
+  }
+
   console.log(`\nPacking buildings atlas — ${images.length} sprites…`);
   await packAtlas(images, {
-    textureName:        'buildings',
-    width:              4096,
-    height:             4096,
-    fixedSize:          false,
-    padding:            2,
-    allowRotation:      false,
-    detectIdentical:    false,
-    allowTrim:          true,
-    exporter:           'JsonHash',
+    textureName:         'buildings',
+    width:               4096,
+    height:              4096,
+    fixedSize:           false,
+    padding:             2,
+    allowRotation:       false,
+    detectIdentical:     false,
+    allowTrim:           true,
+    exporter:            'JsonHash',
     removeFileExtension: true,
-    prependFolderName:  false,
+    prependFolderName:   false,
   });
 }
 
@@ -246,44 +294,52 @@ async function packCrops() {
   });
 }
 
-// ─── NPCs ─────────────────────────────────────────────────────────────────────
-
-const NPC_FRAME_W = 64;
-const NPC_FRAME_H = 64;
-
-const NPC_SHEETS = [
-  { file: 'Farmer_Bob.png',       prefix: 'farmer_bob',       cols: 6, rows: 13 },
-  { file: 'Farmer_Buba.png',      prefix: 'farmer_buba',      cols: 6, rows: 13 },
-  { file: 'Lumberjack_Jack.png',  prefix: 'lumberjack_jack',  cols: 6, rows: 10 },
-  { file: 'Miner_Mike.png',       prefix: 'miner_mike',       cols: 6, rows: 10 },
-  { file: 'Chef_Chloe.png',       prefix: 'chef_chloe',       cols: 6, rows: 7  },
-  { file: 'Bartender_Bruno.png',  prefix: 'bartender_bruno',  cols: 6, rows: 7  },
-  { file: 'Bartender_Katy.png',   prefix: 'bartender_katy',   cols: 6, rows: 7  },
-  { file: 'Fisherman_Fin.png',    prefix: 'fisherman_fin',    cols: 9, rows: 13 },
-];
+// ─── NPCs (sprite-defs driven) ────────────────────────────────────────────────
+//
+// Reads entries with atlasGroup="npcs" from sprite-defs.json.
+// Slices each spritesheet into individual frames and packs them.
+// Frame names: {framePrefix}_{linearIndex}  where linearIndex = row * cols + col.
+// This matches the naming expected by PreloadScene.ts registerNpcAnims().
+//
+// totalRows is derived as max(animation.row) + 1 so the loop covers all rows
+// defined in animations — identical to the old hardcoded NPC_SHEETS.rows values.
+// cols is taken from animations[0].cols; all animations within an NPC sheet use
+// the same column count (6 for most, 9 for Fisherman_Fin).
 
 async function packNpcs() {
+  const npcSheets = SPRITE_DEFS.spritesheets.filter(s => s.atlasGroup === 'npcs');
+  if (!npcSheets.length) {
+    console.log('\nNo NPC entries in sprite-defs.json — skipping npcs atlas.');
+    return;
+  }
+
   console.log('\nPacking NPCs atlas…');
   const npcImages = [];
   const npcDir = join(ASSET_SRC, 'NPCs (Premade)');
 
-  for (const sheet of NPC_SHEETS) {
-    const imgPath  = join(npcDir, sheet.file);
-    const sheetImg = await Jimp.read(imgPath);
-    console.log(`  ${sheet.file}: ${sheet.cols}×${sheet.rows} = ${sheet.cols * sheet.rows} frames`);
+  for (const sheet of npcSheets) {
+    const file      = basename(sheet.srcFile);
+    const imgPath   = join(npcDir, file);
+    const fw        = sheet.frameWidth;
+    const fh        = sheet.frameHeight;
+    const cols      = sheet.animations[0]?.cols ?? 6;
+    const totalRows = Math.max(...sheet.animations.map(a => a.row)) + 1;
 
-    for (let r = 0; r < sheet.rows; r++) {
-      for (let c = 0; c < sheet.cols; c++) {
-        const canvas = new Jimp({ width: NPC_FRAME_W, height: NPC_FRAME_H, color: 0x00000000 });
-        for (let py = 0; py < NPC_FRAME_H; py++) {
-          for (let px = 0; px < NPC_FRAME_W; px++) {
-            const color = sheetImg.getPixelColor(c * NPC_FRAME_W + px, r * NPC_FRAME_H + py);
+    const sheetImg = await Jimp.read(imgPath);
+    console.log(`  ${file}: ${cols}×${totalRows} = ${cols * totalRows} frames`);
+
+    for (let r = 0; r < totalRows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const canvas = new Jimp({ width: fw, height: fh, color: 0x00000000 });
+        for (let py = 0; py < fh; py++) {
+          for (let px = 0; px < fw; px++) {
+            const color = sheetImg.getPixelColor(c * fw + px, r * fh + py);
             canvas.setPixelColor(color, px, py);
           }
         }
         const buf = await canvas.getBuffer('image/png');
-        const idx = r * sheet.cols + c;
-        npcImages.push({ path: `${sheet.prefix}_${idx}.png`, contents: buf });
+        const idx = r * cols + c;
+        npcImages.push({ path: `${sheet.framePrefix}_${idx}.png`, contents: buf });
       }
     }
   }
@@ -306,26 +362,12 @@ async function packNpcs() {
 
 // ─── Animals (sprite-defs driven) ────────────────────────────────────────────
 //
-// Reads src/data/sprite-defs.json.  For each spritesheet with atlasGroup="animals",
-// it slices the source PNG into individual animation frames and packs them into the
-// animals atlas.  Frame names: {id}_{animName}_{frameIndex}
-//
+// Reads entries with atlasGroup="animals" from sprite-defs.json.
 // Source PNGs are looked up in public/assets/source/{srcFile} (set by sprite-server).
-// If sprite-defs has no animal entries, logs a warning and skips this atlas.
-
-const SPRITE_DEFS_PATH = join(ROOT, 'src', 'data', 'sprite-defs.json');
-const SPRITE_SOURCE    = join(ROOT, 'public', 'assets', 'source');
+// Frame names: {id}_{animName}_{frameIndex}
 
 async function packAnimals() {
-  let defs = { spritesheets: [] };
-  try {
-    defs = JSON.parse(readFileSync(SPRITE_DEFS_PATH, 'utf-8'));
-  } catch {
-    console.log('\nNo sprite-defs.json found — skipping animals atlas.');
-    return;
-  }
-
-  const sheets = (defs.spritesheets || []).filter(s => s.atlasGroup === 'animals');
+  const sheets = SPRITE_DEFS.spritesheets.filter(s => s.atlasGroup === 'animals');
   if (!sheets.length) {
     console.log('\nsprite-defs.json has no animal entries — skipping animals atlas.');
     console.log('  Use `npm run sprites` to open the Sprite Configurator and upload your animal PNGs.');
@@ -411,7 +453,29 @@ async function packWeather() {
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 
+const ATLAS_PACKERS = {
+  buildings: packBuildings,
+  icons:     packIcons,
+  trees:     packTrees,
+  decor:     packDecor,
+  crops:     packCrops,
+  npcs:      packNpcs,
+  animals:   packAnimals,
+  weather:   packWeather,
+};
+
 async function main() {
+  if (GROUP_ARG) {
+    const fn = ATLAS_PACKERS[GROUP_ARG];
+    if (!fn) {
+      console.error(`Unknown --group: "${GROUP_ARG}". Valid groups: ${Object.keys(ATLAS_PACKERS).join(', ')}`);
+      process.exit(1);
+    }
+    await fn();
+    console.log(`\n${GROUP_ARG} atlas done.`);
+    return;
+  }
+
   await packBuildings();
   await packIcons();
   await packTrees();

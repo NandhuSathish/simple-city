@@ -2,6 +2,33 @@
 
 ---
 
+## [Game Customizer Phase A — sprite-defs.json + pack-atlases refactor] 2026-04-23
+
+Goal: Establish `src/data/sprite-defs.json` as the single source of truth for all sprite metadata; refactor `tools/pack-atlases.js` to read NPC and building groups from it instead of hardcoded arrays. Phase A steps 1–4 complete.
+
+### Added
+
+- **`src/data/sprite-defs.json`** — Extended from 1 entry (chicken_01) to 27 total across three categories:
+  - **8 NPC entries** (`category: "npc"`, `atlasGroup: "npcs"`): farmer_bob, farmer_buba, lumberjack_jack, miner_mike, chef_chloe, bartender_bruno, bartender_katy, fisherman_fin. Each entry carries `framePrefix`, `frameWidth/Height` (all 64×64), and a full `animations` array with named rows (idle_down/left/right/up, walk_down/left/right/up, plus profession-specific work rows). Rows derived from the old `NPC_SHEETS` array; unknown work rows named `work_row_N` as placeholders.
+  - **18 building entries** (`category: "building"`): one per unique `spriteFrame` referenced in `buildingCatalog.ts`. Includes `footprintW/H` (in tiles), exact pixel `frameWidth/Height` read from PNG headers, `anchor: {x:0.5, y:1.0}`, and `variants: ["default"]`. `atlasGroup` is `"buildings"` for sprites packed by `packBuildings()`, or `"decor"` for Fountain/Boat/Benches/Flowers (packed by `packDecor()`). `wall_segment` shares `Well.png` with `well` as a placeholder; both entries are present.
+
+### Changed
+
+- **`tools/pack-atlases.js`** — Refactored NPC and building packing to read from `sprite-defs.json`:
+  - Sprite-defs loaded once at module level (`SPRITE_DEFS`) and shared by all three driven packers.
+  - `packNpcs()`: replaced hardcoded `NPC_SHEETS` array. Derives `totalRows` as `max(animation.row)+1` and `cols` from `animations[0].cols`. Frame naming `{framePrefix}_{r*cols+c}` preserved exactly — output is byte-for-byte equivalent (519 frames, verified).
+  - `packBuildings()`: replaced `collectPngs()` full-directory scan. Now packs only the sprites listed in sprite-defs (`atlasGroup === 'buildings'`). Builds a filename→fullpath index from the ASSET_SRC tree at runtime; duplicates (well + wall_segment both reference Well.png) are deduplicated via a `Set`. Frame names unchanged (PNG basename without extension).
+  - `packAnimals()`: unchanged in behavior; now reads from the module-level `SPRITE_DEFS` instead of loading the file internally.
+  - Added **`--group=<atlasGroup>` CLI flag**: routes to a single packer function via `ATLAS_PACKERS` map and exits. Unknown group names print an error and exit 1. Example: `node tools/pack-atlases.js --group=npcs`.
+  - Removed: `NPC_SHEETS` constant, `NPC_FRAME_W`, `NPC_FRAME_H` constants, internal sprite-defs file read inside `packAnimals()`.
+
+### Notes
+
+- Building atlas now packs 14 sprites (catalog-referenced subset) instead of the previous 160+ (full directory scan). All `spriteFrame` values in `buildingCatalog.ts` are covered; only the Blue color variants are packed since those are the only ones currently referenced by the catalog.
+- Fisherman_Fin confirmed at 9 cols × 13 rows = 117 frames; matches the Phase 6 changelog entry and `PreloadScene.ts`.
+
+---
+
 ## [Phase 6 — Districts & Progression] 2026-04-23
 
 Goal: The 10 concept-panel districts become content tiers unlocked as the city grows. Full save/load. Pause menu + tech tree. Happiness system. Fog of war.
